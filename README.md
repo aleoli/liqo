@@ -118,6 +118,14 @@ You can observe that:
   kubectl get pods -n liqo-demo -o wide  
 ``` 
 
+### Going Further
+
+If you want to understand and get more in details with Liqo, you can explore the documentation website:
+
+* Continue the Liqo journey by continuing to explore the [Liqo playground](https://doc.liqo.io/user/gettingstarted/play/)
+* Find out how to install Liqo on [your clusters](https://doc.liqo.io/user/install/)
+* Read more about the [Liqo architecture](https://doc.liqo.io/architecture/)
+
 ## Installation
 
 Liqo can be installed by using Helm. The configuration depends on the cluster type (K8s, K3s, managed) and the provider. Possible scenarios can be found [here](https://doc.liqo.io/user/scenarios/).
@@ -128,10 +136,10 @@ Once you identified your scenario, follow the instructions for the proper instal
 
 Planned features for the next release (v0.3, expected mid-July, 2021) are the following:
 
-* Support for deployments spanning across more than two clusters
-* Support for a more balanced scheduling mechanism to distribute jobs across clusters
-* Support for Amazon Elastic Kubernetes Service
-* Support for more-granular permission control over remote cluster resources
+* Support for deployments spanning across more than two clusters.
+* Support for a more balanced scheduling mechanism to distribute jobs across clusters.
+* Support for Amazon Elastic Kubernetes Service.
+* Support for more-granular permission control over remote cluster resources.
 
 ## Contributing
 

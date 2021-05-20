@@ -1,22 +1,22 @@
 ---
-title: Scenarios 
+title: Pre-Install
 weight: 2
 ---
 
 ### Introduction
 
-Liqo can be installed either in private or local clusters. Its configuration depends on the type of connectivity between the two clusters.
+Liqo can be installed either in private or local clusters. Its configuration depends on the type of connectivity between the two clusters. Before installing Liqo, you have to consider how your clusters can connect to each other and can peer together.
 
 ### Peering Requirements
 
-Liqo relies on the following services to perform cluster peerings:
+Liqo requires the following services to be reciprocally accessible to perform cluster peerings:
 
-* **Authentication server**: Liqo authentication endpoint.
-* **API server**: The API Server of Kubernetes
-* **VPN gateway**: Liqo Network endpoint
+* **Authentication server** used to authenticate other clusters (i.e. `liqo-auth`).
+* The **Kubernetes API server** you want to peer.
+* **Network gateway** used to establish interconnection between clusters (i.e. `liqo-gateway`)
 
 Those services have to be accessible from the other clusters to peer with them. This may change the way you would like to have them exposed.
-Below it is possible to find some common scenarios that Liqo can handle. Once you identify yours, you can go ahead to the install section to find the installation instruction for your distribution.
+Below it is possible to find some common scenarios that Liqo can handle. Once you identify yours, you can go have to the *table* of each section to find the right values you should specify when installing Liqo using the chart.
 
 ### Cloud to cloud
 
@@ -28,7 +28,7 @@ Two managed clusters peered together through the internet. It is possible to hav
 | --------- | -------- |  ---------       |
 | **Auth Server** |  LoadBalancer/ingress | LoadBalancer/ingress |
 | **API server** | Provided | Provided |
-| **VPN gateway** | LoadBalancer | LoadBalancer |
+| **Network gateway** | LoadBalancer | LoadBalancer |
 
 ### On-premise to cloud
 
@@ -40,7 +40,7 @@ On-premise cluster (K3s or K8s) exposed through the Internet peered with a Manag
 | --------- | -------- |  ---------       |
 | **Auth Server** |  LoadBalancer/ingress | LoadBalancer/ingress |
 | **API server** | Ingress/Public IP | Provided |
-| **VPN gateway** | LoadBalancer | LoadBalancer |
+| **Network gateway** | LoadBalancer | LoadBalancer |
 
 ### On-premise to on-premise
 
@@ -53,7 +53,7 @@ From the discovery perspective, if the clusters you would like to connect are in
 | --------- | -------- |  ---------       |
 | **Auth Server** |  NodePort | NodePort |
 | **API server** | Exposed | Exposed |
-| **VPN gateway** | NodePort | NodePort |
+| **Network gateway** | NodePort | NodePort |
 
 ### On-premise behind NAT to cloud
 
@@ -65,4 +65,4 @@ On-premise cluster (K3s or K8s) exposed through a NAT over the Internet peered w
 | --------- | -------- |  ---------       |
 | **Auth Server** |  NodePort with port-forwarding | LoadBalancer/ingress |
 | **API server** | Port-forwarding | Provided |
-| **VPN gateway** | NodePort with port-forwarding | LoadBalancer |
+| **Network gateway** | NodePort with port-forwarding | LoadBalancer |
