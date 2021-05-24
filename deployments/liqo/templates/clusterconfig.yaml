@@ -49,9 +49,21 @@ spec:
     {{- .Values.networkManager.config | toYaml | nindent 4 }}
   dispatcherConfig:
     resourcesToReplicate:
+    {{- if .Values.useNewAuth }}
+    - group: discovery.liqo.io
+      version: v1alpha1
+      resource: resourcerequests
+      peeringPhase: All
+    - group: sharing.liqo.io
+      version: v1alpha1
+      resource: resourceoffers
+      peeringPhase: Incoming
+    {{- else }}
     - group: net.liqo.io
       version: v1alpha1
       resource: networkconfigs
+      peeringPhase: Established
+    {{- end }}
   agentConfig:
     dashboardConfig:
       namespace: {{ .Release.Namespace }}

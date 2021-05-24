@@ -28,39 +28,42 @@ func (c *Controller) WatchConfiguration(config *rest.Config, gv *schema.GroupVer
 }
 
 func (c *Controller) UpdateConfig(cfg *configv1alpha1.ClusterConfig) {
-	resources := c.GetConfig(cfg)
+	resources := c.getConfig(cfg)
 	if !reflect.DeepEqual(c.RegisteredResources, resources) {
 		klog.Info("updating the list of registered resources to be replicated")
-		c.UnregisteredResources = c.GetRemovedResources(resources)
+		c.UnregisteredResources = c.getRemovedResources(resources)
 		c.RegisteredResources = resources
 		klog.Infof("%s -> current registered resources %s", c.ClusterID, c.RegisteredResources)
 	}
 }
 
-func (c *Controller) GetConfig(cfg *configv1alpha1.ClusterConfig) []schema.GroupVersionResource {
+func (c *Controller) getConfig(cfg *configv1alpha1.ClusterConfig) []resourceToReplicate {
 	resourceList := cfg.Spec.DispatcherConfig
-	config := []schema.GroupVersionResource{}
+	config := []resourceToReplicate{}
 	for _, res := range resourceList.ResourcesToReplicate {
-		config = append(config, schema.GroupVersionResource{
-			Group:    res.Group,
-			Version:  res.Version,
-			Resource: res.Resource,
+		config = append(config, resourceToReplicate{
+			groupVersionResource: schema.GroupVersionResource{
+				Group:    res.Group,
+				Version:  res.Version,
+				Resource: res.Resource,
+			},
+			peeringPhase: res.PeeringPhase,
 		})
 	}
 	return config
 }
 
-func (c *Controller) GetRemovedResources(resources []schema.GroupVersionResource) []string {
+func (c *Controller) getRemovedResources(resources []resourceToReplicate) []string {
 	oldRes := []string{}
 	diffRes := []string{}
 	newRes := []string{}
 	//save the resources as strings in 'newRes'
 	for _, r := range resources {
-		newRes = append(newRes, r.String())
+		newRes = append(newRes, r.groupVersionResource.String())
 	}
 	//get the old resources
 	for _, r := range c.RegisteredResources {
-		oldRes = append(oldRes, r.String())
+		oldRes = append(oldRes, r.groupVersionResource.String())
 	}
 	//save in diffRes all the resources that appears in oldRes but not in newRes
 	flag := false

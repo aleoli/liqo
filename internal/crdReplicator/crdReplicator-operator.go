@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -28,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/liqotech/liqo/apis/discovery/v1alpha1"
+	"github.com/liqotech/liqo/pkg/consts"
 	identitymanager "github.com/liqotech/liqo/pkg/identityManager"
 	utils "github.com/liqotech/liqo/pkg/liqonet"
 	tenantcontrolnamespace "github.com/liqotech/liqo/pkg/tenantControlNamespace"
@@ -49,6 +51,11 @@ const (
 	ReplicationStatuslabel = "liqo.io/replicated"
 )
 
+type resourceToReplicate struct {
+	groupVersionResource schema.GroupVersionResource
+	peeringPhase         consts.PeeringPhase
+}
+
 type Controller struct {
 	Scheme *runtime.Scheme
 	client.Client
@@ -58,16 +65,29 @@ type Controller struct {
 	RemoteDynSharedInformerFactory map[string]dynamicinformer.DynamicSharedInformerFactory // for each remote cluster we save the dynamic shared informer factory
 	LocalDynClient                 dynamic.Interface                                       // dynamic client pointing to the local API server
 	LocalDynSharedInformerFactory  dynamicinformer.DynamicSharedInformerFactory            // local dynamic shared informer factory
-	RegisteredResources            []schema.GroupVersionResource                           // a list of GVRs of resources to be replicated
-	UnregisteredResources          []string                                                // each time a resource is removed from the configuration it is saved in this list, it stays here until the associated watcher, if running, is stopped
-	LocalWatchers                  map[string]chan struct{}                                // we save all the running watchers monitoring the local resources:(registeredResource, chan))
-	RemoteWatchers                 map[string]map[string]chan struct{}                     // for each peering cluster we save all the running watchers monitoring the replicated resources:(clusterID, (registeredResource, chan))
+	// RegisteredResources is a list of GVRs of resources to be replicated, with the associated peering phase when the replication has to occur.
+	RegisteredResources []resourceToReplicate
+	// UnregisteredResources, each time a resource is removed from the configuration it is saved in this list,
+	// it stays here until the associated watcher, if running, is stopped.
+	UnregisteredResources []string
+	// LocalWatchers, we save all the running watchers monitoring the local resources:(registeredResource, chan)).
+	LocalWatchers map[string]chan struct{}
+	// RemoteWatchers, for each peering cluster we save all the running watchers monitoring the replicated resources:
+	// (clusterID, (registeredResource, chan)).
+	RemoteWatchers map[string]map[string]chan struct{}
 
-	UseNewAuth                   bool
-	NamespaceManager             tenantcontrolnamespace.TenantControlNamespaceManager
-	IdentityManager              identitymanager.IdentityManager
+	// UseNewAuth indicates if the new authentication is enabled.
+	UseNewAuth bool
+	// NamespaceManager is an interface to manage the tenant namespaces.
+	NamespaceManager tenantcontrolnamespace.TenantControlNamespaceManager
+	// IdentityManager is an interface to manage remote identities, and to get the rest config.
+	IdentityManager identitymanager.IdentityManager
+	// LocalToRemoteNamespaceMapper maps local namespaces to remote ones.
 	LocalToRemoteNamespaceMapper map[string]string
+	// RemoteToLocalNamespaceMapper maps remtoe namespaces to local ones.
 	RemoteToLocalNamespaceMapper map[string]string
+	peeringPhases                map[string]consts.PeeringPhase
+	peeringPhasesMutex           sync.RWMutex
 }
 
 // cluster-role
@@ -79,6 +99,9 @@ type Controller struct {
 // role
 // +kubebuilder:rbac:groups=core,namespace="do-not-care",resources=secrets,verbs=get;list
 // +kubebuilder:rbac:groups=core,namespace="do-not-care",resources=configmaps,verbs=get;list
+
+// identity management
+// +kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list
 
 // Reconcile handles requests for subscribed types of object.
 func (c *Controller) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -106,7 +129,9 @@ func (c *Controller) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				}
 				return result, nil
 			}
-			return result, nil
+			if !c.UseNewAuth {
+				return result, nil
+			}
 		}
 		if !utils.ContainsString(fc.ObjectMeta.Finalizers, finalizer) {
 			fc.ObjectMeta.Finalizers = append(fc.Finalizers, finalizer)
@@ -147,6 +172,11 @@ func (c *Controller) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	_, dynFacOk := c.RemoteDynSharedInformerFactory[remoteClusterID]
 	if dynClientOk && dynFacOk {
 		return result, nil
+	}
+
+	currentPhase := getPeeringPhase(&fc)
+	if oldPhase := c.getPeeringPhase(remoteClusterID); oldPhase != currentPhase {
+		c.setPeeringPhase(remoteClusterID, currentPhase)
 	}
 
 	if c.UseNewAuth {
@@ -358,30 +388,36 @@ func (c *Controller) StartWatchers() {
 			watchers = make(map[string]chan struct{})
 		}
 		for _, res := range c.RegisteredResources {
+			if !isReplicationEnabled(c.getPeeringPhase(remCluster), res) {
+				continue
+			}
+
+			gvr := res.groupVersionResource
 			// if there is not then start one
-			if _, ok := watchers[res.String()]; !ok {
+			if _, ok := watchers[gvr.String()]; !ok {
 				stopCh := make(chan struct{})
-				watchers[res.String()] = stopCh
-				go c.Watcher(remDynFac, res, cache.ResourceEventHandlerFuncs{
+				watchers[gvr.String()] = stopCh
+				go c.Watcher(remDynFac, gvr, cache.ResourceEventHandlerFuncs{
 					UpdateFunc: c.remoteModifiedWrapper,
 				}, stopCh)
-				klog.Infof("%s -> starting remote watcher for resource: %s", remCluster, res.String())
+				klog.Infof("%s -> starting remote watcher for resource: %s", remCluster, gvr.String())
 			}
 		}
 		c.RemoteWatchers[remCluster] = watchers
 	}
 	// check if the local watchers are running for each registered resource
 	for _, res := range c.RegisteredResources {
+		gvr := res.groupVersionResource
 		// if there is not a running local watcher then start one
-		if _, ok := c.LocalWatchers[res.String()]; !ok {
+		if _, ok := c.LocalWatchers[gvr.String()]; !ok {
 			stopCh := make(chan struct{})
-			c.LocalWatchers[res.String()] = stopCh
-			go c.Watcher(c.LocalDynSharedInformerFactory, res, cache.ResourceEventHandlerFuncs{
+			c.LocalWatchers[gvr.String()] = stopCh
+			go c.Watcher(c.LocalDynSharedInformerFactory, gvr, cache.ResourceEventHandlerFuncs{
 				AddFunc:    c.AddFunc,
 				UpdateFunc: c.UpdateFunc,
 				DeleteFunc: c.DeleteFunc,
 			}, stopCh)
-			klog.Infof("%s -> starting local watcher for resource: %s", c.ClusterID, res.String())
+			klog.Infof("%s -> starting local watcher for resource: %s", c.ClusterID, gvr.String())
 		}
 	}
 }
@@ -399,6 +435,22 @@ func (c *Controller) StopWatchers() {
 				}
 			}
 		}
+
+		// stop watchers for those resources no more needed
+		for _, res := range c.RegisteredResources {
+			if isReplicationEnabled(c.getPeeringPhase(remCluster), res) {
+				continue
+			}
+
+			if ch, ok := watchers[res.groupVersionResource.String()]; ok {
+				if ok {
+					close(ch)
+					delete(watchers, res.groupVersionResource.String())
+					klog.Infof("%s -> stopping remote watcher for resource: %s", remCluster, res)
+				}
+			}
+		}
+
 		c.RemoteWatchers[remCluster] = watchers
 	}
 	// stop all local watchers
