@@ -32,8 +32,6 @@ var (
 	image             = "nginx"
 	podTesterLocalCl  = "tester-local"
 	podTesterRemoteCl = "tester-remote"
-	// TestNamespaceName is the namespace name where the test is performed.
-	TestNamespaceName = "test-connectivity"
 	// label to list only the real nodes excluding the virtual ones.
 	labelSelectorNodes = fmt.Sprintf("%v!=%v", liqoconst.TypeLabel, liqoconst.TypeNode)
 	command            = "timeout 15 curl --retry 60 --fail --max-time 2 -s -o /dev/null -w '%{http_code}' "
