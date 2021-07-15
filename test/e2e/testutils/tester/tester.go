@@ -16,6 +16,10 @@ package tester
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
 
 	capsulev1alpha1 "github.com/clastix/capsule/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -39,6 +43,8 @@ import (
 type Tester struct {
 	Clusters  []ClusterContext
 	Namespace string
+	// ClusterNumber represents the number of available clusters
+	ClusterNumber int
 	// the key is the clusterID and the value is the corresponding client
 	ClustersClients map[string]client.Client
 }
@@ -54,64 +60,72 @@ type ClusterContext struct {
 
 // Environment variable.
 const (
-	kubeconfigCluster1EnvVar = "KUBECONFIG_1"
-	kubeconfigCluster2EnvVar = "KUBECONFIG_2"
-	kubeconfigCluster3EnvVar = "KUBECONFIG_3"
-	kubeconfigCluster4EnvVar = "KUBECONFIG_4"
-	namespaceEnvVar          = "NAMESPACE"
+	namespaceEnvVar     = "NAMESPACE"
+	ClusterNumberVarKey = "CLUSTER_NUMBER"
+	kubeconfigBaseName  = "liqoKubeconfig"
 )
 
 var (
 	tester        *Tester
-	kubeconfigVec = []string{kubeconfigCluster1EnvVar, kubeconfigCluster2EnvVar,
-		kubeconfigCluster3EnvVar, kubeconfigCluster4EnvVar}
+
 )
 
 // GetTester returns a Tester instance.
-func GetTester(ctx context.Context, clustersNumber int, controllerClientsPresence bool) *Tester {
+func GetTester(ctx context.Context, controllerClientsPresence bool) *Tester {
 	if tester == nil {
-		tester = createTester(ctx, clustersNumber, controllerClientsPresence)
+		tester = createTester(ctx, controllerClientsPresence)
 	}
 	return tester
 }
 
-func createTester(ctx context.Context, clusterNumbers int, controllerClientsPresence bool) *Tester {
-	var kubeconfigs []string
-	var configs []*rest.Config
-	var clientsets []*kubernetes.Clientset
-	var clusterIDs []string
+func createTester(ctx context.Context, controllerClientsPresence bool) *Tester {
 	namespace := testutils.GetEnvironmentVariable(namespaceEnvVar)
+
+	// Here is necessary to add the controller runtime clients.
+	scheme := getScheme()
+	tester.ClustersClients = map[string]client.Client{}
 
 	tester = &Tester{
 		Namespace: namespace,
 	}
 
-	for i := 0; i < clusterNumbers; i++ {
-		kubeconfigs = append(kubeconfigs, testutils.GetEnvironmentVariable(kubeconfigVec[i]))
-		configs = append(configs, testutils.GetRestConfig(kubeconfigs[i]))
-		clientsets = append(clientsets, testutils.GetNativeClient(configs[i]))
-		clusterIDs = append(clusterIDs, testutils.GetClusterID(ctx, clientsets[i], namespace))
-		tester.Clusters = append(tester.Clusters, ClusterContext{
-			Config:         configs[i],
-			KubeconfigPath: kubeconfigs[i],
-			NativeClient:   clientsets[i],
-			ClusterID:      clusterIDs[i],
-		})
+	clusterNumber,err := getClusterNumberFromEnv()
+	if err != nil {
+		return nil
 	}
 
-	if !controllerClientsPresence {
-		return tester
+	for i := 0; i < clusterNumber; i++ {
+		var kubeconfigName = strings.Join([]string{kubeconfigBaseName,string(rune(i))},"_")
+		var c = ClusterContext{
+			Config:         testutils.GetRestConfig(kubeconfigName),
+			KubeconfigPath: testutils.GetEnvironmentVariable(kubeconfigName),
+		}
+		c.NativeClient =  testutils.GetNativeClient(c.Config)
+		c.ClusterID = testutils.GetClusterID(ctx, c.NativeClient, namespace)
+
+		if controllerClientsPresence {
+			controllerClient := testutils.GetControllerClient(ctx, scheme, c.Config)
+			tester.Clusters[i].ControllerClient = controllerClient
+			tester.ClustersClients[c.ClusterID] = controllerClient
+		}
+		tester.Clusters = append(tester.Clusters,c)
 	}
 
-	// Here is necessary to add the controller runtime clients.
-	scheme := getScheme()
-	tester.ClustersClients = map[string]client.Client{}
-	for i := 0; i < clusterNumbers; i++ {
-		controllerClient := testutils.GetControllerClient(ctx, scheme, configs[i])
-		tester.Clusters[i].ControllerClient = controllerClient
-		tester.ClustersClients[clusterIDs[i]] = controllerClient
-	}
 	return tester
+}
+
+func getClusterNumberFromEnv() (int,error) {
+	var clusterNumberString string
+	var clusterNumber int
+	var ok bool
+	var err error
+	if clusterNumberString,ok = os.LookupEnv(ClusterNumberVarKey); !ok {
+		return 0,fmt.Errorf("%s Variable not found", ClusterNumberVarKey)
+	}
+	if clusterNumber,err = strconv.Atoi(clusterNumberString); err != nil || clusterNumber < 0 {
+		return 0,err
+	}
+	return clusterNumber,nil
 }
 
 func getScheme() *runtime.Scheme {

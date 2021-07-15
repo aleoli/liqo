@@ -15,7 +15,7 @@ import (
 
 	testutils "github.com/liqotech/liqo/pkg/utils"
 	cachedclientutils "github.com/liqotech/liqo/pkg/utils/cachedClient"
-	"github.com/liqotech/liqo/test/e2e/testconsts"
+	"github.com/liqotech/liqo/test/e2e/testutils/tester"
 )
 
 // GetEnvironmentVariable retrieves the value of the environment variable named by the key.
@@ -72,9 +72,9 @@ func GetClusterID(ctx context.Context, cl kubernetes.Interface, namespace string
 // CheckIfTestIsSkipped checks if the number of clusters required by the test is less than
 // the number of cluster really present.
 func CheckIfTestIsSkipped(t *testing.T, clustersRequired int, testName string) {
-	numberOfTestClusters, err := strconv.Atoi(GetEnvironmentVariable(testconsts.ClusterEnvVarKey))
+	numberOfTestClusters, err := strconv.Atoi(GetEnvironmentVariable(tester.ClusterNumberVarKey))
 	if err != nil {
-		klog.Fatalf(" %s -> unable to covert the '%s' environment variable", err, testconsts.ClusterEnvVarKey)
+		klog.Fatalf(" %s -> unable to covert the '%s' environment variable", err, tester.ClusterNumberVarKey)
 	}
 	if numberOfTestClusters < clustersRequired {
 		t.Skipf("not enough cluster for the '%s'", testName)
