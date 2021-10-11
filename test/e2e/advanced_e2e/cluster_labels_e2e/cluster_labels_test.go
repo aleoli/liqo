@@ -13,10 +13,10 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
 	k8shelper "k8s.io/component-helpers/scheduling/corev1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	configv1alpha1 "github.com/liqotech/liqo/apis/config/v1alpha1"
 	offloadingv1alpha1 "github.com/liqotech/liqo/apis/offloading/v1alpha1"
 	sharingv1alpha1 "github.com/liqotech/liqo/apis/sharing/v1alpha1"
 	liqoconst "github.com/liqotech/liqo/pkg/consts"
@@ -47,7 +47,7 @@ func TestE2E(t *testing.T) {
 var _ = Describe("Liqo E2E", func() {
 	var (
 		ctx         = context.Background()
-		testContext = tester.GetTester(ctx, clustersRequired, controllerClientPresence)
+		testContext = tester.GetTester(ctx)
 		interval    = 1 * time.Second
 		// shortTimeout is used for Consistently statement
 		shortTimeout = 5 * time.Second
@@ -60,7 +60,7 @@ var _ = Describe("Liqo E2E", func() {
 	Context("Assert that labels inserted at installation time are in the right resources: clusterConfig,"+
 		" resourceOffer and virtualNodes", func() {
 
-		DescribeTable(" 1 - Check labels presence in the ClusterConfig resources for every cluster",
+		/*DescribeTable(" 1 - Check labels presence in the ClusterConfig resources for every cluster",
 			// Every cluster must have in its ClusterConfig Resource, the labels inserted at installation time.
 			func(cluster tester.ClusterContext, clusterLabels map[string]string) {
 				clusterConfig := &configv1alpha1.ClusterConfig{}
@@ -73,7 +73,7 @@ var _ = Describe("Liqo E2E", func() {
 			Entry("Check the ClusterConfig resource of the cluster 2", testContext.Clusters[1], util.GetClusterLabels(1)),
 			Entry("Check the ClusterConfig resource of the cluster 3", testContext.Clusters[2], util.GetClusterLabels(2)),
 			Entry("Check the ClusterConfig resource of the cluster 4", testContext.Clusters[3], util.GetClusterLabels(3)),
-		)
+		)*/
 
 		DescribeTable(" 2 - Check labels presence in the ResourceOffer resources for every cluster",
 			// In every Local Tenant Namespace there must be the ResourceOffer sent by the cluster under examination
@@ -172,14 +172,26 @@ var _ = Describe("Liqo E2E", func() {
 				match, err := k8shelper.MatchNodeSelectorTerms(&virtualNodesList.Items[i], util.GetClusterSelector())
 				Expect(err).To(BeNil())
 				remoteClusterID := virtualNodesList.Items[i].Annotations[liqoconst.RemoteClusterID]
+
+				var cl kubernetes.Interface
+				for j := range testContext.Clusters {
+					cluster := &testContext.Clusters[j]
+					if cluster.ClusterID == remoteClusterID {
+						cl = cluster.NativeClient
+					}
+				}
+				Expect(cl).ToNot(BeNil())
+
 				if match {
 					// Check if the remote namespace is correctly created.
 					By(fmt.Sprintf(" 5 - Checking if a remote namespace is correctly created inside cluster '%s'", remoteClusterID))
 					namespace := &corev1.Namespace{}
+
 					Eventually(func() error {
-						return testContext.ClustersClients[remoteClusterID].Get(ctx,
-							types.NamespacedName{Name: testNamespaceName}, namespace)
+						namespace, err = cl.CoreV1().Namespaces().Get(ctx, testNamespaceName, metav1.GetOptions{})
+						return err
 					}, timeout, interval).Should(BeNil())
+
 					value, ok := namespace.Annotations[liqoconst.RemoteNamespaceAnnotationKey]
 					Expect(ok).To(BeTrue())
 					Expect(value).To(Equal(testContext.Clusters[localIndex].ClusterID))
@@ -187,9 +199,8 @@ var _ = Describe("Liqo E2E", func() {
 					// Check if the remote namespace does not exists.
 					By(fmt.Sprintf(" 5 - Checking that no remote namespace is created inside cluster '%s'", remoteClusterID))
 					Consistently(func() metav1.StatusReason {
-						namespace := &corev1.Namespace{}
-						return apierrors.ReasonForError(testContext.ClustersClients[remoteClusterID].Get(ctx,
-							types.NamespacedName{Name: testNamespaceName}, namespace))
+						_, err = cl.CoreV1().Namespaces().Get(ctx, testNamespaceName, metav1.GetOptions{})
+						return apierrors.ReasonForError(err)
 					}, shortTimeout, interval).Should(Equal(metav1.StatusReasonNotFound))
 				}
 

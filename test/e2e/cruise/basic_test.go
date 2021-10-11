@@ -25,7 +25,10 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
+	"github.com/liqotech/liqo/test/e2e/testconsts"
 	"github.com/liqotech/liqo/test/e2e/testutils/microservices"
 	"github.com/liqotech/liqo/test/e2e/testutils/net"
 	"github.com/liqotech/liqo/test/e2e/testutils/tester"
@@ -129,20 +132,20 @@ var _ = Describe("Liqo E2E", func() {
 		AfterSuite(func() {
 
 			for i := range testContext.Clusters {
-				err := util.DeleteNamespace(ctx, testContext.Clusters[i].NativeClient, testutils.LiqoTestNamespaceLabels)
+				err := util.EnsureNamespaceDeletion(ctx, testContext.Clusters[i].NativeClient, testconsts.LiqoTestNamespaceLabels)
 				Expect(err).ShouldNot(HaveOccurred())
 			}
 			Eventually(func() bool {
 				for i := range testContext.Clusters {
 					list, err := testContext.Clusters[i].NativeClient.CoreV1().Namespaces().List(ctx, metav1.ListOptions{
-						LabelSelector: labels.SelectorFromSet(testutils.LiqoTestNamespaceLabels).String(),
+						LabelSelector: labels.SelectorFromSet(testconsts.LiqoTestNamespaceLabels).String(),
 					})
 					if err != nil || len(list.Items) > 0 {
 						return false
 					}
 				}
-				return globalErr
-			}, timeout, interval).Should(BeNil())
+				return true
+			}, timeout, interval).Should(BeTrue())
 		})
 	})
 

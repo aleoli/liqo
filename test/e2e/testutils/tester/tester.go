@@ -34,6 +34,7 @@ import (
 	offv1alpha1 "github.com/liqotech/liqo/apis/offloading/v1alpha1"
 	sharingv1alpha1 "github.com/liqotech/liqo/apis/sharing/v1alpha1"
 	virtualKubeletv1alpha1 "github.com/liqotech/liqo/apis/virtualKubelet/v1alpha1"
+	"github.com/liqotech/liqo/test/e2e/testconsts"
 	testutils "github.com/liqotech/liqo/test/e2e/testutils/util"
 )
 
@@ -56,10 +57,7 @@ type ClusterContext struct {
 
 // Environment variable.
 const (
-	namespaceEnvVar      = "NAMESPACE"
-	ClusterNumberVarKey  = "CLUSTER_NUMBER"
-	kubeconfigBaseName   = "liqo_kubeconf"
-	KubeconfigDirVarName = "KUBECONFIGDIR"
+	kubeconfigBaseName = "liqo_kubeconf"
 )
 
 var (
@@ -97,8 +95,8 @@ func GetTesterUninstall(ctx context.Context) *Tester {
 }
 
 func createTester(ctx context.Context, ignoreClusterIDError bool) (*Tester, error) {
-	namespace := testutils.GetEnvironmentVariableOrDie(namespaceEnvVar)
-	TmpDir := testutils.GetEnvironmentVariableOrDie(KubeconfigDirVarName)
+	namespace := testutils.GetEnvironmentVariableOrDie(testconsts.NamespaceEnvVar)
+	TmpDir := testutils.GetEnvironmentVariableOrDie(testconsts.KubeconfigDirVarName)
 
 	// Here is necessary to add the controller runtime clients.
 	scheme := getScheme()
@@ -138,7 +136,7 @@ func createTester(ctx context.Context, ignoreClusterIDError bool) (*Tester, erro
 }
 
 func getClusterNumberFromEnv() (int, error) {
-	clusterNumberString := testutils.GetEnvironmentVariableOrDie(ClusterNumberVarKey)
+	clusterNumberString := testutils.GetEnvironmentVariableOrDie(testconsts.ClusterNumberVarKey)
 
 	clusterNumber, err := strconv.Atoi(clusterNumberString)
 	if err != nil || clusterNumber < 0 {

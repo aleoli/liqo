@@ -29,6 +29,7 @@ import (
 
 	liqoconst "github.com/liqotech/liqo/pkg/consts"
 	"github.com/liqotech/liqo/test/e2e/testutils/tester"
+	"github.com/liqotech/liqo/test/e2e/testutils/util"
 )
 
 const (

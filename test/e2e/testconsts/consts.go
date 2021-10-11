@@ -1,5 +1,20 @@
 package testconsts
 
+import "github.com/liqotech/liqo/pkg/consts"
+
+// Environment variable.
+const (
+	NamespaceEnvVar      = "NAMESPACE"
+	ClusterNumberVarKey  = "CLUSTER_NUMBER"
+	KubeconfigDirVarName = "KUBECONFIGDIR"
+)
+
+// LiqoTestNamespaceLabels is a set of labels that has to be attached to test namespaces to simplify garbage collection.
+var LiqoTestNamespaceLabels = map[string]string{
+	LiqoTestingLabelKey:      LiqoTestingLabelValue,
+	consts.EnablingLiqoLabel: consts.EnablingLiqoLabelValue,
+}
+
 const (
 	// Keys for cluster labels.
 
@@ -29,8 +44,4 @@ const (
 	LiqoTestingLabelKey = "liqo.io/testing-namespace"
 	// LiqoTestingLabelValue is the value of the LiqoTestingLabelKey.
 	LiqoTestingLabelValue = "true"
-
-	// ClusterEnvVarKey is the key of the environment variable that indicates the number of clusters available for the
-	// execution of e2e tests.
-	ClusterEnvVarKey = "CLUSTERS"
 )

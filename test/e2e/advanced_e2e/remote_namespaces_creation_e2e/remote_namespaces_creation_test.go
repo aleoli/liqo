@@ -40,7 +40,7 @@ func TestE2E(t *testing.T) {
 var _ = Describe("Liqo E2E", func() {
 	var (
 		ctx         = context.Background()
-		testContext = tester.GetTester(ctx, clustersRequired, controllerClientPresence)
+		testContext = tester.GetTester(ctx)
 		interval    = 1 * time.Second
 		timeout     = 10 * time.Second
 		// longTimeout is used in situations that may take longer to be performed
