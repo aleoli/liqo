@@ -15,16 +15,25 @@
 package storage
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"io"
 	"time"
 
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/onsi/ginkgo"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/remotecommand"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -41,7 +50,7 @@ const (
 )
 
 // DeployApp creates the namespace and deploys the applications. It returns an error in case of failures.
-func DeployApp(ctx context.Context, config *rest.Config, namespace string) error {
+func DeployApp(ctx context.Context, config *rest.Config, namespace string, replicas int32) error {
 	cl, err := client.New(config, client.Options{})
 	if err != nil {
 		return err
@@ -54,7 +63,15 @@ func DeployApp(ctx context.Context, config *rest.Config, namespace string) error
 		},
 	}
 
-	if err = cl.Create(ctx, ns); err != nil {
+	if err = retry.OnError(wait.Backoff{
+		Steps:    30,
+		Duration: 100 * time.Millisecond,
+		Factor:   1.1,
+	}, func(error) bool {
+		return apierrors.IsAlreadyExists(err)
+	}, func() error {
+		return cl.Create(ctx, ns)
+	}); err != nil {
 		return err
 	}
 
@@ -67,7 +84,7 @@ func DeployApp(ctx context.Context, config *rest.Config, namespace string) error
 			},
 		},
 		Spec: appsv1.StatefulSetSpec{
-			Replicas: pointer.Int32(2),
+			Replicas: pointer.Int32(replicas),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"app": StatefulSetName,
@@ -146,12 +163,84 @@ func DeployApp(ctx context.Context, config *rest.Config, namespace string) error
 	return cl.Create(ctx, statefulSet)
 }
 
-// WaitDemoApp waits until each pod in the StatefulSet is ready.
-func WaitDemoApp(t ginkgo.GinkgoTInterface, options *k8s.KubectlOptions) {
-	k8s.WaitUntilNumPodsCreated(t, options, metav1.ListOptions{}, 2, retries, sleepBetweenRetries)
+// ScaleStatefulSet scales the StatefulSet to the desired number of replicas.
+func ScaleStatefulSet(ctx context.Context, t ginkgo.GinkgoTInterface, options *k8s.KubectlOptions,
+	cl kubernetes.Interface, namespace string, replicas int32) error {
+	statefulSet, err := cl.AppsV1().StatefulSets(namespace).Get(ctx, StatefulSetName, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
 
-	pods := k8s.ListPods(t, options, metav1.ListOptions{})
+	statefulSet.Spec.Replicas = &replicas
+	_, err = cl.AppsV1().StatefulSets(namespace).Update(ctx, statefulSet, metav1.UpdateOptions{})
+	if err != nil {
+		return err
+	}
+
+	WaitDemoApp(t, options, int(replicas))
+	return nil
+}
+
+// WaitDemoApp waits until each pod in the StatefulSet is ready.
+func WaitDemoApp(t ginkgo.GinkgoTInterface, options *k8s.KubectlOptions, replicas int) {
+	k8s.WaitUntilNumPodsCreated(t, options, metav1.ListOptions{
+		LabelSelector: "app=" + StatefulSetName,
+	}, replicas, retries, sleepBetweenRetries)
+
+	pods := k8s.ListPods(t, options, metav1.ListOptions{
+		LabelSelector: "app=" + StatefulSetName,
+	})
 	for index := range pods {
 		k8s.WaitUntilPodAvailable(t, options, pods[index].Name, retries, sleepBetweenRetries)
 	}
+}
+
+// WriteToVolume writes a file to the volume of the StatefulSet.
+func WriteToVolume(ctx context.Context, cl kubernetes.Interface, config *rest.Config, namespace string) error {
+	return execCmd(cl, config, namespace,
+		[]string{"bash", "-c", "echo -n test > /usr/share/nginx/html/index.html"},
+		nil, ginkgo.GinkgoWriter, ginkgo.GinkgoWriter)
+}
+
+// ReadFromVolume reads a file from the volume of the StatefulSet.
+func ReadFromVolume(ctx context.Context, cl kubernetes.Interface, config *rest.Config, namespace string) (string, error) {
+	var out bytes.Buffer
+	err := execCmd(cl, config, namespace,
+		[]string{"cat", "/usr/share/nginx/html/index.html"},
+		nil, &out, ginkgo.GinkgoWriter)
+	if err != nil {
+		return "", err
+	}
+	return out.String(), nil
+}
+
+func execCmd(cl kubernetes.Interface, config *rest.Config, namespace string,
+	command []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	req := cl.CoreV1().RESTClient().Post().Resource("pods").Name(fmt.Sprintf("%s-0", StatefulSetName)).
+		Namespace(namespace).SubResource("exec")
+	option := &corev1.PodExecOptions{
+		Command: command,
+		Stdin:   stdin != nil,
+		Stdout:  stdout != nil,
+		Stderr:  stderr != nil,
+		TTY:     false,
+	}
+	req.VersionedParams(
+		option,
+		scheme.ParameterCodec,
+	)
+	exec, err := remotecommand.NewSPDYExecutor(config, "POST", req.URL())
+	if err != nil {
+		return err
+	}
+	err = exec.Stream(remotecommand.StreamOptions{
+		Stdin:  stdin,
+		Stdout: stdout,
+		Stderr: stderr,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
