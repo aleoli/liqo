@@ -95,7 +95,7 @@ var _ = Describe("ForeignClusterOperator", func() {
 			ClusterID:   "foreign-cluster-id",
 			ClusterName: "foreign-cluster-name",
 		}
-		tenantNamespace, err = namespaceManager.CreateNamespace(foreignCluster)
+		tenantNamespace, err = namespaceManager.CreateNamespace(ctx, foreignCluster)
 		if err != nil {
 			By(err.Error())
 			os.Exit(1)
@@ -927,7 +927,7 @@ var _ = Describe("ForeignClusterOperator", func() {
 					By("Delete RoleBindings")
 
 					// create all
-					_, err := controller.NamespaceManager.BindClusterRoles(c.fc.Spec.ClusterIdentity, &clusterRole1, &clusterRole2)
+					_, err := controller.NamespaceManager.BindClusterRoles(ctx, c.fc.Spec.ClusterIdentity, &clusterRole1, &clusterRole2)
 					Expect(err).To(Succeed())
 
 					Expect(controller.ensurePermission(ctx, &c.fc)).To(Succeed())

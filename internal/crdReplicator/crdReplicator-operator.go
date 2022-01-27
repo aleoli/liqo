@@ -165,7 +165,7 @@ func (c *Controller) Reconcile(ctx context.Context, req ctrl.Request) (result ct
 		klog.Infof("[%v] TenantNamespace is not yet set in resource %q", remoteCluster.ClusterName, fc.Name)
 		return ctrl.Result{}, nil
 	}
-	config, err := c.IdentityReader.GetConfig(remoteCluster, fc.Status.TenantNamespace.Local)
+	config, err := c.IdentityReader.GetConfig(ctx, remoteCluster, fc.Status.TenantNamespace.Local)
 	if err != nil {
 		klog.Errorf("[%v] Unable to retrieve config from resource %q: %s", remoteCluster.ClusterName, fc.Name, err)
 		return ctrl.Result{}, nil

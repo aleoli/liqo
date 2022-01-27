@@ -49,25 +49,29 @@ const (
 // it creates a new identity and sends it to the remote cluster.
 func (r *ForeignClusterReconciler) ensureRemoteIdentity(ctx context.Context,
 	foreignCluster *discoveryv1alpha1.ForeignCluster) error {
-	_, err := r.IdentityManager.GetConfig(foreignCluster.Spec.ClusterIdentity, foreignCluster.Status.TenantNamespace.Local)
-	if err != nil && !kerrors.IsNotFound(err) {
-		klog.Error(err)
-		return err
-	}
-	if err == nil {
-		peeringconditionsutils.EnsureStatus(foreignCluster,
-			discoveryv1alpha1.AuthenticationStatusCondition,
-			discoveryv1alpha1.PeeringConditionStatusEstablished,
-			identityAcceptedReason,
-			identityAcceptedMessage)
-	} else {
+	_, err := r.IdentityManager.GetConfig(ctx, foreignCluster.Spec.ClusterIdentity, foreignCluster.Status.TenantNamespace.Local)
+	switch {
+	case kerrors.IsNotFound(err):
 		err = r.validateIdentity(ctx, foreignCluster)
 		if err != nil {
 			klog.Error(err)
 			return err
 		}
-	}
+	case err != nil:
+		klog.Error(err)
+		return err
+	default:
+		if err = r.IdentityManager.EnsureDynamicFields(ctx, foreignCluster); err != nil {
+			klog.Error(err)
+			return err
+		}
 
+		peeringconditionsutils.EnsureStatus(foreignCluster,
+			discoveryv1alpha1.AuthenticationStatusCondition,
+			discoveryv1alpha1.PeeringConditionStatusEstablished,
+			identityAcceptedReason,
+			identityAcceptedMessage)
+	}
 	return nil
 }
 
@@ -75,7 +79,7 @@ func (r *ForeignClusterReconciler) ensureRemoteIdentity(ctx context.Context,
 // and loads it in the ForeignCluster.
 func (r *ForeignClusterReconciler) fetchRemoteTenantNamespace(ctx context.Context,
 	foreignCluster *discoveryv1alpha1.ForeignCluster) error {
-	remoteNamespace, err := r.IdentityManager.GetRemoteTenantNamespace(
+	remoteNamespace, err := r.IdentityManager.GetRemoteTenantNamespace(ctx,
 		foreignCluster.Spec.ClusterIdentity, foreignCluster.Status.TenantNamespace.Local)
 	if err != nil {
 		klog.Error(err)
@@ -94,13 +98,13 @@ func (r *ForeignClusterReconciler) validateIdentity(ctx context.Context, fc *dis
 		return err
 	}
 
-	_, err = r.IdentityManager.CreateIdentity(remoteCluster)
+	_, err = r.IdentityManager.CreateIdentity(ctx, remoteCluster)
 	if err != nil {
 		klog.Error(err)
 		return err
 	}
 
-	csr, err := r.IdentityManager.GetSigningRequest(remoteCluster)
+	csr, err := r.IdentityManager.GetSigningRequest(ctx, remoteCluster)
 	if err != nil {
 		klog.Error(err)
 		return err
@@ -125,7 +129,7 @@ func (r *ForeignClusterReconciler) validateIdentity(ctx context.Context, fc *dis
 		return err
 	}
 
-	if err = r.IdentityManager.StoreCertificate(remoteCluster, fc.Spec.ForeignProxyURL, &response); err != nil {
+	if err = r.IdentityManager.StoreCertificate(ctx, remoteCluster, fc.Spec.ForeignProxyURL, &response); err != nil {
 		klog.Error(err)
 		return err
 	}

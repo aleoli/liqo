@@ -26,10 +26,10 @@ import (
 // Manager provides the methods to handle the creation and
 // the management of tenant namespaces.
 type Manager interface {
-	CreateNamespace(cluster discoveryv1alpha1.ClusterIdentity) (*v1.Namespace, error)
+	CreateNamespace(ctx context.Context, cluster discoveryv1alpha1.ClusterIdentity) (*v1.Namespace, error)
 	GetNamespace(cluster discoveryv1alpha1.ClusterIdentity) (*v1.Namespace, error)
-	BindClusterRoles(cluster discoveryv1alpha1.ClusterIdentity, clusterRoles ...*rbacv1.ClusterRole) ([]*rbacv1.RoleBinding, error)
-	UnbindClusterRoles(cluster discoveryv1alpha1.ClusterIdentity, clusterRoles ...string) error
+	BindClusterRoles(ctx context.Context, cluster discoveryv1alpha1.ClusterIdentity, clusterRoles ...*rbacv1.ClusterRole) ([]*rbacv1.RoleBinding, error)
+	UnbindClusterRoles(ctx context.Context, cluster discoveryv1alpha1.ClusterIdentity, clusterRoles ...string) error
 	BindIncomingClusterWideRole(ctx context.Context, cluster discoveryv1alpha1.ClusterIdentity) (*rbacv1.ClusterRoleBinding, error)
 	UnbindIncomingClusterWideRole(ctx context.Context, cluster discoveryv1alpha1.ClusterIdentity) error
 }

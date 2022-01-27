@@ -66,7 +66,8 @@ func NewTenantNamespaceManager(client kubernetes.Interface) Manager {
 
 // CreateNamespace creates a new Tenant Namespace given the clusterid
 // This method is idempotent, multiple calls of it will not lead to multiple namespace creations.
-func (nm *tenantNamespaceManager) CreateNamespace(cluster discoveryv1alpha1.ClusterIdentity) (ns *v1.Namespace, err error) {
+func (nm *tenantNamespaceManager) CreateNamespace(ctx context.Context,
+	cluster discoveryv1alpha1.ClusterIdentity) (ns *v1.Namespace, err error) {
 	// Let immediately check if the namespace already exists, since this is operation cached and thus fast
 	if ns, err = nm.GetNamespace(cluster); err == nil {
 		return ns, nil
@@ -88,7 +89,7 @@ func (nm *tenantNamespaceManager) CreateNamespace(cluster discoveryv1alpha1.Clus
 		},
 	}
 
-	ns, err = nm.client.CoreV1().Namespaces().Create(context.TODO(), ns, metav1.CreateOptions{})
+	ns, err = nm.client.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
 	if err != nil {
 		klog.Error(err)
 		return nil, err

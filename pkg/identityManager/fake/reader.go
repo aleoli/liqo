@@ -15,6 +15,7 @@
 package fake
 
 import (
+	"context"
 	"fmt"
 
 	"k8s.io/client-go/rest"
@@ -44,7 +45,8 @@ func (i *IdentityReader) Add(clusterID, namespace string, restcfg *rest.Config) 
 }
 
 // GetConfig retrieves the rest config associated with a remote cluster.
-func (i *IdentityReader) GetConfig(remoteCluster discoveryv1alpha1.ClusterIdentity, namespace string) (*rest.Config, error) {
+func (i *IdentityReader) GetConfig(ctx context.Context,
+	remoteCluster discoveryv1alpha1.ClusterIdentity, namespace string) (*rest.Config, error) {
 	if restcfg, found := i.configs[remoteCluster.ClusterID]; found {
 		return restcfg, nil
 	}
@@ -52,7 +54,8 @@ func (i *IdentityReader) GetConfig(remoteCluster discoveryv1alpha1.ClusterIdenti
 }
 
 // GetRemoteTenantNamespace retrieves the tenant namespace associated with a remote cluster.
-func (i *IdentityReader) GetRemoteTenantNamespace(remoteCluster discoveryv1alpha1.ClusterIdentity, namespace string) (string, error) {
+func (i *IdentityReader) GetRemoteTenantNamespace(ctx context.Context,
+	remoteCluster discoveryv1alpha1.ClusterIdentity, namespace string) (string, error) {
 	if namespace, found := i.namespaces[remoteCluster.ClusterID]; found {
 		return namespace, nil
 	}

@@ -15,6 +15,8 @@
 package namespacemapctrl
 
 import (
+	"context"
+
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 
@@ -25,7 +27,8 @@ import (
 
 // checkRemoteClientPresence creates a new controller-runtime Client for a remote cluster, if it isn't already present
 // in RemoteClients Struct of NamespaceMap Controller.
-func (r *NamespaceMapReconciler) checkRemoteClientPresence(remoteCluster discoveryv1alpha1.ClusterIdentity) error {
+func (r *NamespaceMapReconciler) checkRemoteClientPresence(ctx context.Context,
+	remoteCluster discoveryv1alpha1.ClusterIdentity) error {
 	if r.RemoteClients == nil {
 		r.RemoteClients = map[string]kubernetes.Interface{}
 	}
@@ -33,7 +36,7 @@ func (r *NamespaceMapReconciler) checkRemoteClientPresence(remoteCluster discove
 	if _, ok := r.RemoteClients[remoteCluster.ClusterID]; !ok {
 		tenantNamespaceManager := tenantnamespace.NewTenantNamespaceManager(r.IdentityManagerClient)
 		identityManager := identitymanager.NewCertificateIdentityReader(r.IdentityManagerClient, r.LocalCluster, tenantNamespaceManager)
-		restConfig, err := identityManager.GetConfig(remoteCluster, "")
+		restConfig, err := identityManager.GetConfig(ctx, remoteCluster, "")
 		if err != nil {
 			klog.Error(err)
 			return err

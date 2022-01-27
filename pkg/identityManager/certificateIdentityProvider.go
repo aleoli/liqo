@@ -50,9 +50,10 @@ type certificateIdentityProvider struct {
 
 // GetRemoteCertificate retrieves a certificate issued in the past,
 // given the clusterid and the signingRequest.
-func (identityProvider *certificateIdentityProvider) GetRemoteCertificate(cluster discoveryv1alpha1.ClusterIdentity,
+func (identityProvider *certificateIdentityProvider) GetRemoteCertificate(ctx context.Context,
+	cluster discoveryv1alpha1.ClusterIdentity,
 	namespace, signingRequest string) (response *responsetypes.SigningRequestResponse, err error) {
-	secret, err := identityProvider.client.CoreV1().Secrets(namespace).Get(context.TODO(), remoteCertificateSecret, metav1.GetOptions{})
+	secret, err := identityProvider.client.CoreV1().Secrets(namespace).Get(ctx, remoteCertificateSecret, metav1.GetOptions{})
 	if err != nil {
 		if kerrors.IsNotFound(err) {
 			klog.V(4).Info(err)
@@ -98,7 +99,8 @@ func (identityProvider *certificateIdentityProvider) GetRemoteCertificate(cluste
 // ApproveSigningRequest approves a remote CertificateSigningRequest.
 // It creates a CertificateSigningRequest CR to be issued by the local cluster, and approves it.
 // This function will wait (with a timeout) for an available certificate before returning.
-func (identityProvider *certificateIdentityProvider) ApproveSigningRequest(cluster discoveryv1alpha1.ClusterIdentity,
+func (identityProvider *certificateIdentityProvider) ApproveSigningRequest(ctx context.Context,
+	cluster discoveryv1alpha1.ClusterIdentity,
 	signingRequest string) (response *responsetypes.SigningRequestResponse, err error) {
 	signingBytes, err := base64.StdEncoding.DecodeString(signingRequest)
 	if err != nil {
@@ -125,7 +127,7 @@ func (identityProvider *certificateIdentityProvider) ApproveSigningRequest(clust
 		},
 	}
 
-	cert, err = identityProvider.client.CertificatesV1().CertificateSigningRequests().Create(context.TODO(), cert, metav1.CreateOptions{})
+	cert, err = identityProvider.client.CertificatesV1().CertificateSigningRequests().Create(ctx, cert, metav1.CreateOptions{})
 	if err != nil {
 		klog.Error(err)
 		return response, err
@@ -142,7 +144,7 @@ func (identityProvider *certificateIdentityProvider) ApproveSigningRequest(clust
 		ResponseType: responsetypes.SigningRequestResponseCertificate,
 	}
 	// retrieve the certificate issued by the Kubernetes issuer in the CSR (with a 30 seconds timeout)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	response.Certificate, err = identityProvider.csrWatcher.RetrieveCertificate(ctx, cert.Name)
 	if err != nil {
@@ -151,7 +153,7 @@ func (identityProvider *certificateIdentityProvider) ApproveSigningRequest(clust
 	}
 
 	// store the certificate in a Secret, in this way is possbile to retrieve it again in the future
-	if _, err = identityProvider.storeRemoteCertificate(cluster, signingBytes, response.Certificate); err != nil {
+	if _, err = identityProvider.storeRemoteCertificate(ctx, cluster, signingBytes, response.Certificate); err != nil {
 		klog.Error(err)
 		return response, err
 	}
@@ -159,7 +161,8 @@ func (identityProvider *certificateIdentityProvider) ApproveSigningRequest(clust
 }
 
 // storeRemoteCertificate stores the issued certificate in a Secret in the TenantNamespace.
-func (identityProvider *certificateIdentityProvider) storeRemoteCertificate(cluster discoveryv1alpha1.ClusterIdentity,
+func (identityProvider *certificateIdentityProvider) storeRemoteCertificate(ctx context.Context,
+	cluster discoveryv1alpha1.ClusterIdentity,
 	signingRequest, certificate []byte) (*v1.Secret, error) {
 	namespace, err := identityProvider.namespaceManager.GetNamespace(cluster)
 	if err != nil {
@@ -179,7 +182,7 @@ func (identityProvider *certificateIdentityProvider) storeRemoteCertificate(clus
 	}
 
 	if secret, err = identityProvider.client.CoreV1().
-		Secrets(namespace.Name).Create(context.TODO(), secret, metav1.CreateOptions{}); err != nil {
+		Secrets(namespace.Name).Create(ctx, secret, metav1.CreateOptions{}); err != nil {
 		klog.Error(err)
 		return nil, err
 	}

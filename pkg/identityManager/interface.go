@@ -15,6 +15,8 @@
 package identitymanager
 
 import (
+	"context"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/rest"
 
@@ -25,23 +27,24 @@ import (
 
 // IdentityReader provides the interface to retrieve the identities for the remote clusters.
 type IdentityReader interface {
-	GetConfig(remoteCluster discoveryv1alpha1.ClusterIdentity, namespace string) (*rest.Config, error)
-	GetRemoteTenantNamespace(remoteCluster discoveryv1alpha1.ClusterIdentity, namespace string) (string, error)
+	GetConfig(ctx context.Context, remoteCluster discoveryv1alpha1.ClusterIdentity, namespace string) (*rest.Config, error)
+	GetRemoteTenantNamespace(ctx context.Context, remoteCluster discoveryv1alpha1.ClusterIdentity, namespace string) (string, error)
 }
 
 // IdentityManager interface provides the methods to manage identities for the remote clusters.
 type IdentityManager interface {
 	IdentityReader
 
-	CreateIdentity(remoteCluster discoveryv1alpha1.ClusterIdentity) (*v1.Secret, error)
-	GetSigningRequest(remoteCluster discoveryv1alpha1.ClusterIdentity) ([]byte, error)
-	StoreCertificate(remoteCluster discoveryv1alpha1.ClusterIdentity, remoteProxyURL string, identityResponse *auth.CertificateIdentityResponse) error
+	CreateIdentity(ctx context.Context, remoteCluster discoveryv1alpha1.ClusterIdentity) (*v1.Secret, error)
+	GetSigningRequest(ctx context.Context, remoteCluster discoveryv1alpha1.ClusterIdentity) ([]byte, error)
+	StoreCertificate(ctx context.Context, remoteCluster discoveryv1alpha1.ClusterIdentity, remoteProxyURL string, identityResponse *auth.CertificateIdentityResponse) error
+	EnsureDynamicFields(ctx context.Context, remoteCluster *discoveryv1alpha1.ForeignCluster) error
 }
 
 // IdentityProvider provides the interface to retrieve and approve remote cluster identities.
 type IdentityProvider interface {
-	GetRemoteCertificate(cluster discoveryv1alpha1.ClusterIdentity,
+	GetRemoteCertificate(ctx context.Context, cluster discoveryv1alpha1.ClusterIdentity,
 		namespace, signingRequest string) (response *responsetypes.SigningRequestResponse, err error)
-	ApproveSigningRequest(cluster discoveryv1alpha1.ClusterIdentity,
+	ApproveSigningRequest(ctx context.Context, cluster discoveryv1alpha1.ClusterIdentity,
 		signingRequest string) (response *responsetypes.SigningRequestResponse, err error)
 }

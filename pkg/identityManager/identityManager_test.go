@@ -115,7 +115,7 @@ var _ = Describe("IdentityManager", func() {
 		identityMan = NewCertificateIdentityManager(cluster.GetClient(), localCluster, namespaceManager)
 		identityProvider = NewCertificateIdentityProvider(ctx, cluster.GetClient(), localCluster, namespaceManager)
 
-		namespace, err = namespaceManager.CreateNamespace(remoteCluster)
+		namespace, err = namespaceManager.CreateNamespace(ctx, remoteCluster)
 		if err != nil {
 			By(err.Error())
 			os.Exit(1)
@@ -193,7 +193,7 @@ var _ = Describe("IdentityManager", func() {
 	Context("Local Manager", func() {
 
 		It("Create Identity", func() {
-			secret, err := identityMan.CreateIdentity(remoteCluster)
+			secret, err := identityMan.CreateIdentity(ctx, remoteCluster)
 			Expect(err).To(BeNil())
 			Expect(secret).NotTo(BeNil())
 			Expect(secret.Namespace).To(Equal(namespace.Name))
@@ -220,7 +220,7 @@ var _ = Describe("IdentityManager", func() {
 		})
 
 		It("Get Signing Request", func() {
-			csrBytes, err := identityMan.GetSigningRequest(remoteCluster)
+			csrBytes, err := identityMan.GetSigningRequest(ctx, remoteCluster)
 			Expect(err).To(BeNil())
 
 			b, _ := pem.Decode(csrBytes)
@@ -233,10 +233,10 @@ var _ = Describe("IdentityManager", func() {
 			// we need that at least 1 second passed since the creation of the previous identity
 			time.Sleep(1 * time.Second)
 
-			secret, err := identityMan.CreateIdentity(remoteCluster)
+			secret, err := identityMan.CreateIdentity(ctx, remoteCluster)
 			Expect(err).To(BeNil())
 
-			csrBytes, err := identityMan.GetSigningRequest(remoteCluster)
+			csrBytes, err := identityMan.GetSigningRequest(ctx, remoteCluster)
 			Expect(err).To(BeNil())
 
 			csrBytesSecret, ok := secret.Data[csrSecretKey]
@@ -255,7 +255,7 @@ var _ = Describe("IdentityManager", func() {
 		var stopChan chan struct{}
 
 		BeforeEach(func() {
-			csrBytes, err = identityMan.GetSigningRequest(remoteCluster)
+			csrBytes, err = identityMan.GetSigningRequest(ctx, remoteCluster)
 			Expect(err).To(BeNil())
 
 			stopChan = make(chan struct{})
@@ -267,14 +267,14 @@ var _ = Describe("IdentityManager", func() {
 		})
 
 		It("Approve Signing Request", func() {
-			certificate, err := identityProvider.ApproveSigningRequest(remoteCluster, base64.StdEncoding.EncodeToString(csrBytes))
+			certificate, err := identityProvider.ApproveSigningRequest(ctx, remoteCluster, base64.StdEncoding.EncodeToString(csrBytes))
 			Expect(err).To(BeNil())
 			Expect(certificate).NotTo(BeNil())
 			Expect(certificate.Certificate).To(Equal([]byte(idManTest.FakeCRT)))
 		})
 
 		It("Retrieve Remote Certificate", func() {
-			certificate, err := identityProvider.GetRemoteCertificate(remoteCluster, namespace.Name, base64.StdEncoding.EncodeToString(csrBytes))
+			certificate, err := identityProvider.GetRemoteCertificate(ctx, remoteCluster, namespace.Name, base64.StdEncoding.EncodeToString(csrBytes))
 			Expect(err).To(BeNil())
 			Expect(certificate).NotTo(BeNil())
 			Expect(certificate.Certificate).To(Equal([]byte(idManTest.FakeCRT)))
@@ -285,7 +285,7 @@ var _ = Describe("IdentityManager", func() {
 				ClusterID:   "fake-cluster-id",
 				ClusterName: "fake-cluster-name",
 			}
-			certificate, err := identityProvider.GetRemoteCertificate(fakeIdentity, "fake", base64.StdEncoding.EncodeToString(csrBytes))
+			certificate, err := identityProvider.GetRemoteCertificate(ctx, fakeIdentity, "fake", base64.StdEncoding.EncodeToString(csrBytes))
 			Expect(err).NotTo(BeNil())
 			Expect(kerrors.IsNotFound(err)).To(BeTrue())
 			Expect(kerrors.IsBadRequest(err)).To(BeFalse())
@@ -293,7 +293,7 @@ var _ = Describe("IdentityManager", func() {
 		})
 
 		It("Retrieve Remote Certificate wrong CSR", func() {
-			certificate, err := identityProvider.GetRemoteCertificate(remoteCluster, namespace.Name, base64.StdEncoding.EncodeToString([]byte("fake")))
+			certificate, err := identityProvider.GetRemoteCertificate(ctx, remoteCluster, namespace.Name, base64.StdEncoding.EncodeToString([]byte("fake")))
 			Expect(err).NotTo(BeNil())
 			Expect(kerrors.IsNotFound(err)).To(BeFalse())
 			Expect(kerrors.IsBadRequest(err)).To(BeTrue())
@@ -304,36 +304,57 @@ var _ = Describe("IdentityManager", func() {
 
 	Context("Storage", func() {
 
+		var updateRemoteProxyURL = func(ctx context.Context, remoteCluster discoveryv1alpha1.ClusterIdentity) {
+			fc := &discoveryv1alpha1.ForeignCluster{
+				Spec: discoveryv1alpha1.ForeignClusterSpec{
+					ClusterIdentity: remoteCluster,
+					ForeignProxyURL: "http://proxy.com",
+				},
+			}
+			// update the remote proxy url
+			Expect(identityMan.EnsureDynamicFields(ctx, fc)).To(Succeed())
+			cnf, err := identityMan.GetConfig(ctx, remoteCluster, "")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cnf).NotTo(BeNil())
+			Expect(cnf.Host).To(Equal("https://127.0.0.1"))
+			Expect(cnf.Proxy).ToNot(BeNil())
+			url, err := cnf.Proxy(nil)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(url.String()).To(Equal("http://proxy.com"))
+		}
+
 		It("StoreCertificate", func() {
 			// store the certificate in the secret
-			err := identityMan.StoreCertificate(remoteCluster, "", secretIdentityResponse)
-			Expect(err).To(BeNil())
+			err := identityMan.StoreCertificate(ctx, remoteCluster, "", secretIdentityResponse)
+			Expect(err).ToNot(HaveOccurred())
 
 			// retrieve rest config
-			cnf, err := identityMan.GetConfig(remoteCluster, "")
-			Expect(err).To(BeNil())
+			cnf, err := identityMan.GetConfig(ctx, remoteCluster, "")
+			Expect(err).ToNot(HaveOccurred())
 			Expect(cnf).NotTo(BeNil())
 			Expect(cnf.Host).To(Equal("https://127.0.0.1"))
 
 			idMan, ok := identityMan.(*identityManager)
 			Expect(ok).To(BeTrue())
 
-			secret, err := idMan.getSecret(remoteCluster)
+			secret, err := idMan.getSecret(ctx, remoteCluster)
 			Expect(err).To(Succeed())
 
 			_, found := secret.Data[apiProxyURLSecretKey]
 			Expect(found).To(BeFalse())
 
 			// retrieve the remote tenant namespace
-			remoteNamespace, err := identityMan.GetRemoteTenantNamespace(remoteCluster, "")
-			Expect(err).To(BeNil())
+			remoteNamespace, err := identityMan.GetRemoteTenantNamespace(ctx, remoteCluster, "")
+			Expect(err).ToNot(HaveOccurred())
 			Expect(remoteNamespace).To(Equal("remoteNamespace"))
+
+			updateRemoteProxyURL(ctx, remoteCluster)
 		})
 
 		It("StoreCertificate IAM", func() {
 			// store the certificate in the secret
-			err := identityMan.StoreCertificate(remoteCluster, apiProxyURL, iamIdentityResponse)
-			Expect(err).To(BeNil())
+			err := identityMan.StoreCertificate(ctx, remoteCluster, apiProxyURL, iamIdentityResponse)
+			Expect(err).ToNot(HaveOccurred())
 
 			idMan, ok := identityMan.(*identityManager)
 			Expect(ok).To(BeTrue())
@@ -345,7 +366,7 @@ var _ = Describe("IdentityManager", func() {
 			}
 			idMan.iamTokenManager = &tokenManager
 
-			secret, err := idMan.getSecret(remoteCluster)
+			secret, err := idMan.getSecret(ctx, remoteCluster)
 			Expect(err).To(Succeed())
 
 			Expect(secret.Data[awsAccessKeyIDSecretKey]).To(Equal([]byte(*signingIAMResponse.AwsIdentityResponse.AccessKey.AccessKeyId)))
@@ -356,7 +377,7 @@ var _ = Describe("IdentityManager", func() {
 			Expect(secret.Data[apiProxyURLSecretKey]).To(Equal([]byte(apiProxyURL)))
 
 			// retrieve rest config
-			cnf, err := identityMan.GetConfig(remoteCluster, "")
+			cnf, err := identityMan.GetConfig(ctx, remoteCluster, "")
 			Expect(err).To(Succeed())
 			Expect(cnf).NotTo(BeNil())
 			Expect(cnf.BearerTokenFile).ToNot(BeEmpty())
@@ -384,6 +405,8 @@ var _ = Describe("IdentityManager", func() {
 			Expect(err).To(Succeed())
 			Expect(newToken).ToNot(BeEmpty())
 			Expect(newToken).ToNot(Equal(token))
+
+			updateRemoteProxyURL(ctx, remoteCluster)
 		})
 
 	})

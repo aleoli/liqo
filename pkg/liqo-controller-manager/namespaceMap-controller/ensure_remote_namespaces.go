@@ -38,7 +38,7 @@ import (
 // The right client to use is chosen by means of NamespaceMap's cluster-id.
 func (r *NamespaceMapReconciler) createRemoteNamespace(ctx context.Context,
 	remoteCluster discoveryv1alpha1.ClusterIdentity, remoteNamespaceName string) error {
-	if err := r.checkRemoteClientPresence(remoteCluster); err != nil {
+	if err := r.checkRemoteClientPresence(ctx, remoteCluster); err != nil {
 		return err
 	}
 
@@ -122,7 +122,7 @@ func (r *NamespaceMapReconciler) ensureRemoteNamespacesExistence(
 // so the get Api returns a "NotFound".
 func (r *NamespaceMapReconciler) deleteRemoteNamespace(ctx context.Context,
 	remoteCluster discoveryv1alpha1.ClusterIdentity, remoteNamespaceName string) error {
-	if err := r.checkRemoteClientPresence(remoteCluster); err != nil {
+	if err := r.checkRemoteClientPresence(ctx, remoteCluster); err != nil {
 		return err
 	}
 

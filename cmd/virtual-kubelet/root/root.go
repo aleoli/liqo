@@ -80,7 +80,7 @@ func runRootCommand(ctx context.Context, c *Opts) error {
 	tenantNamespaceManager := tenantnamespace.NewTenantNamespaceManager(localClient)
 	identityManager := identitymanager.NewCertificateIdentityReader(localClient, c.HomeCluster, tenantNamespaceManager)
 
-	remoteConfig, err := identityManager.GetConfig(c.ForeignCluster, c.TenantNamespace)
+	remoteConfig, err := identityManager.GetConfig(ctx, c.ForeignCluster, c.TenantNamespace)
 	if err != nil {
 		return err
 	}

@@ -96,7 +96,7 @@ func (authService *Controller) handleIdentity(
 
 	remoteClusterIdentity := identityRequest.ClusterIdentity
 	klog.V(4).Infof("Creating Tenant Namespace for cluster %s", remoteClusterIdentity)
-	namespace, err := authService.namespaceManager.CreateNamespace(remoteClusterIdentity)
+	namespace, err := authService.namespaceManager.CreateNamespace(ctx, remoteClusterIdentity)
 	if err != nil {
 		klog.Error(err)
 		return nil, err
@@ -104,7 +104,7 @@ func (authService *Controller) handleIdentity(
 	tracer.Step("Tenant namespace created")
 
 	// check that there is no available certificate for that clusterID
-	if _, err = authService.identityProvider.GetRemoteCertificate(
+	if _, err = authService.identityProvider.GetRemoteCertificate(ctx,
 		remoteClusterIdentity, namespace.Name, identityRequest.CertificateSigningRequest); err == nil {
 		klog.Info("multiple identity validations with unique clusterID")
 		err = &kerrors.StatusError{ErrStatus: metav1.Status{
@@ -121,7 +121,7 @@ func (authService *Controller) handleIdentity(
 	tracer.Step("Cluster ID uniqueness ensured")
 
 	// issue certificate request
-	identityResponse, err := authService.identityProvider.ApproveSigningRequest(
+	identityResponse, err := authService.identityProvider.ApproveSigningRequest(ctx,
 		remoteClusterIdentity, identityRequest.CertificateSigningRequest)
 	if err != nil {
 		klog.Error(err)
@@ -130,7 +130,7 @@ func (authService *Controller) handleIdentity(
 	tracer.Step("Certificate signing request approved")
 
 	// bind basic permission required to start the peering
-	if _, err = authService.namespaceManager.BindClusterRoles(
+	if _, err = authService.namespaceManager.BindClusterRoles(ctx,
 		remoteClusterIdentity, authService.peeringPermission.Basic...); err != nil {
 		klog.Error(err)
 		return nil, err

@@ -42,19 +42,19 @@ import (
 )
 
 // CreateIdentity creates a new key and a new csr to be used as an identity to authenticate with a remote cluster.
-func (certManager *identityManager) CreateIdentity(remoteCluster discoveryv1alpha1.ClusterIdentity) (*v1.Secret, error) {
+func (certManager *identityManager) CreateIdentity(ctx context.Context, remoteCluster discoveryv1alpha1.ClusterIdentity) (*v1.Secret, error) {
 	namespace, err := certManager.namespaceManager.GetNamespace(remoteCluster)
 	if err != nil {
 		klog.Error(err)
 		return nil, err
 	}
 
-	return certManager.createIdentityInNamespace(remoteCluster.ClusterID, namespace.Name)
+	return certManager.createIdentityInNamespace(ctx, remoteCluster.ClusterID, namespace.Name)
 }
 
 // GetSigningRequest gets the CertificateSigningRequest for a remote cluster.
-func (certManager *identityManager) GetSigningRequest(remoteCluster discoveryv1alpha1.ClusterIdentity) ([]byte, error) {
-	secret, err := certManager.getSecret(remoteCluster)
+func (certManager *identityManager) GetSigningRequest(ctx context.Context, remoteCluster discoveryv1alpha1.ClusterIdentity) ([]byte, error) {
+	secret, err := certManager.getSecret(ctx, remoteCluster)
 	if err != nil {
 		klog.Error(err)
 		return nil, err
@@ -72,9 +72,10 @@ func (certManager *identityManager) GetSigningRequest(remoteCluster discoveryv1a
 }
 
 // StoreCertificate stores the certificate issued by a remote authority for the specified remoteClusterID.
-func (certManager *identityManager) StoreCertificate(remoteCluster discoveryv1alpha1.ClusterIdentity,
+func (certManager *identityManager) StoreCertificate(ctx context.Context,
+	remoteCluster discoveryv1alpha1.ClusterIdentity,
 	remoteProxyURL string, identityResponse *auth.CertificateIdentityResponse) error {
-	secret, err := certManager.getSecret(remoteCluster)
+	secret, err := certManager.getSecret(ctx, remoteCluster)
 	if err != nil {
 		klog.Error(err)
 		return err
@@ -121,7 +122,31 @@ func (certManager *identityManager) StoreCertificate(remoteCluster discoveryv1al
 	}
 	secret.Data[namespaceSecretKey] = []byte(identityResponse.Namespace)
 
-	if _, err = certManager.client.CoreV1().Secrets(secret.Namespace).Update(context.TODO(), secret, metav1.UpdateOptions{}); err != nil {
+	if _, err = certManager.client.CoreV1().Secrets(secret.Namespace).Update(ctx, secret, metav1.UpdateOptions{}); err != nil {
+		klog.Error(err)
+		return err
+	}
+	return nil
+}
+
+func (certManager *identityManager) EnsureDynamicFields(ctx context.Context,
+	remoteCluster *discoveryv1alpha1.ForeignCluster) error {
+	secret, err := certManager.getSecret(ctx, remoteCluster.Spec.ClusterIdentity)
+	if err != nil {
+		klog.Error(err)
+		return err
+	}
+
+	remoteProxyURL := remoteCluster.Spec.ForeignProxyURL
+	if remoteProxyURL != "" {
+		secret.Data[apiProxyURLSecretKey] = []byte(remoteProxyURL)
+	} else {
+		data := secret.Data
+		delete(data, apiProxyURLSecretKey)
+		secret.Data = data
+	}
+
+	if _, err = certManager.client.CoreV1().Secrets(secret.Namespace).Update(ctx, secret, metav1.UpdateOptions{}); err != nil {
 		klog.Error(err)
 		return err
 	}
@@ -129,18 +154,18 @@ func (certManager *identityManager) StoreCertificate(remoteCluster discoveryv1al
 }
 
 // getSecret retrieves the identity secret given the clusterID.
-func (certManager *identityManager) getSecret(remoteCluster discoveryv1alpha1.ClusterIdentity) (*v1.Secret, error) {
+func (certManager *identityManager) getSecret(ctx context.Context, remoteCluster discoveryv1alpha1.ClusterIdentity) (*v1.Secret, error) {
 	namespace, err := certManager.namespaceManager.GetNamespace(remoteCluster)
 	if err != nil {
 		klog.Error(err)
 		return nil, err
 	}
 
-	return certManager.getSecretInNamespace(remoteCluster, namespace.Name)
+	return certManager.getSecretInNamespace(ctx, remoteCluster, namespace.Name)
 }
 
 // getSecretInNamespace retrieves the identity secret in the given Namespace.
-func (certManager *identityManager) getSecretInNamespace(remoteCluster discoveryv1alpha1.ClusterIdentity,
+func (certManager *identityManager) getSecretInNamespace(ctx context.Context, remoteCluster discoveryv1alpha1.ClusterIdentity,
 	namespace string) (*v1.Secret, error) {
 	labelSelector := metav1.LabelSelector{
 		MatchLabels: map[string]string{
@@ -148,7 +173,7 @@ func (certManager *identityManager) getSecretInNamespace(remoteCluster discovery
 			discovery.ClusterIDLabel: remoteCluster.ClusterID,
 		},
 	}
-	secretList, err := certManager.client.CoreV1().Secrets(namespace).List(context.TODO(), metav1.ListOptions{
+	secretList, err := certManager.client.CoreV1().Secrets(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: labels.Set(labelSelector.MatchLabels).String(),
 	})
 	if err != nil {
@@ -225,7 +250,7 @@ func (certManager *identityManager) createCSR() (keyBytes, csrBytes []byte, err 
 }
 
 // createIdentityInNamespace creates a new key and a new csr to be used as an identity to authenticate with a remote cluster in a given namespace.
-func (certManager *identityManager) createIdentityInNamespace(remoteClusterID, namespace string) (*v1.Secret, error) {
+func (certManager *identityManager) createIdentityInNamespace(ctx context.Context, remoteClusterID, namespace string) (*v1.Secret, error) {
 	key, csrBytes, err := certManager.createCSR()
 	if err != nil {
 		klog.Error(err)
@@ -251,7 +276,7 @@ func (certManager *identityManager) createIdentityInNamespace(remoteClusterID, n
 		},
 	}
 
-	return certManager.client.CoreV1().Secrets(namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
+	return certManager.client.CoreV1().Secrets(namespace).Create(ctx, secret, metav1.CreateOptions{})
 }
 
 // getExpireTime reads the expire time from the annotations of the secret.

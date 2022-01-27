@@ -15,6 +15,7 @@
 package identitymanager
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 
@@ -29,15 +30,16 @@ import (
 
 // GetConfig gets a rest config from the secret, given the remote clusterID and (optionally) the namespace.
 // This rest config con be used to create a client to the remote cluster.
-func (certManager *identityManager) GetConfig(remoteCluster discoveryv1alpha1.ClusterIdentity,
+func (certManager *identityManager) GetConfig(ctx context.Context,
+	remoteCluster discoveryv1alpha1.ClusterIdentity,
 	namespace string) (*rest.Config, error) {
 	var secret *v1.Secret
 	var err error
 
 	if namespace == "" {
-		secret, err = certManager.getSecret(remoteCluster)
+		secret, err = certManager.getSecret(ctx, remoteCluster)
 	} else {
-		secret, err = certManager.getSecretInNamespace(remoteCluster, namespace)
+		secret, err = certManager.getSecretInNamespace(ctx, remoteCluster, namespace)
 	}
 	if err != nil {
 		klog.Error(err)
@@ -53,15 +55,16 @@ func (certManager *identityManager) GetConfig(remoteCluster discoveryv1alpha1.Cl
 
 // GetRemoteTenantNamespace returns the tenant namespace that
 // the remote cluster assigned to this peering.
-func (certManager *identityManager) GetRemoteTenantNamespace(remoteCluster discoveryv1alpha1.ClusterIdentity,
+func (certManager *identityManager) GetRemoteTenantNamespace(ctx context.Context,
+	remoteCluster discoveryv1alpha1.ClusterIdentity,
 	localTenantNamespaceName string) (string, error) {
 	var secret *v1.Secret
 	var err error
 
 	if localTenantNamespaceName == "" {
-		secret, err = certManager.getSecret(remoteCluster)
+		secret, err = certManager.getSecret(ctx, remoteCluster)
 	} else {
-		secret, err = certManager.getSecretInNamespace(remoteCluster, localTenantNamespaceName)
+		secret, err = certManager.getSecretInNamespace(ctx, remoteCluster, localTenantNamespaceName)
 	}
 	if err != nil {
 		klog.Error(err)

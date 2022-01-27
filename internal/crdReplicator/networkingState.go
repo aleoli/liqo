@@ -55,7 +55,7 @@ func isNetworkingEnabled(networkingState discoveryv1alpha1.NetworkingEnabledType
 	case discoveryv1alpha1.NetworkingEnabledYes:
 		return true
 	default:
-		klog.Warning("Unknown networking state %v", resource.PeeringPhase)
+		klog.Warningf("Unknown networking state %v", resource.PeeringPhase)
 		return false
 	}
 }
