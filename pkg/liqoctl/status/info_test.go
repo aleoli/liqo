@@ -67,11 +67,11 @@ var _ = Describe("Info", func() {
 		It("should return a valid InfoNode tree", func() {
 			Expect(infoNode.title).To(Equal("root"))
 			Expect(infoNode.data[0].key).To(Equal("key1"))
-			Expect(infoNode.data[0].value[0]).To(Equal("value1"))
+			Expect(infoNode.data[0].values[0]).To(Equal("value1"))
 			Expect(infoNode.data[1].key).To(Equal("key2"))
-			Expect(infoNode.data[1].value[0]).To(Equal("value2"))
+			Expect(infoNode.data[1].values[0]).To(Equal("value2"))
 			Expect(infoNode.data[2].key).To(Equal("key3"))
-			Expect(infoNode.data[2].value[0]).To(Equal("value3"))
+			Expect(infoNode.data[2].values[0]).To(Equal("value3"))
 		})
 	})
 	Context("Populating a root node with some data and sections", func() {
@@ -93,12 +93,12 @@ var _ = Describe("Info", func() {
 			Expect(infoNode.nextNodes[1].title).To(Equal("section2"))
 			Expect(infoNode.nextNodes[1].nextNodes[0].title).To(Equal("section3"))
 
-			Expect(infoNode.nextNodes[0].data[0].value[0]).To(Equal("value1"))
-			Expect(infoNode.nextNodes[0].data[1].value[0]).To(Equal("value2"))
-			Expect(infoNode.nextNodes[0].data[2].value[0]).To(Equal("value3"))
-			Expect(infoNode.nextNodes[1].nextNodes[0].data[0].value[0]).To(Equal("value1"))
-			Expect(infoNode.nextNodes[1].nextNodes[0].data[1].value[0]).To(Equal("value2"))
-			Expect(infoNode.nextNodes[1].nextNodes[0].data[2].value[0]).To(Equal("value3"))
+			Expect(infoNode.nextNodes[0].data[0].values[0]).To(Equal("value1"))
+			Expect(infoNode.nextNodes[0].data[1].values[0]).To(Equal("value2"))
+			Expect(infoNode.nextNodes[0].data[2].values[0]).To(Equal("value3"))
+			Expect(infoNode.nextNodes[1].nextNodes[0].data[0].values[0]).To(Equal("value1"))
+			Expect(infoNode.nextNodes[1].nextNodes[0].data[1].values[0]).To(Equal("value2"))
+			Expect(infoNode.nextNodes[1].nextNodes[0].data[2].values[0]).To(Equal("value3"))
 		})
 	})
 	Context("Checking if a title is contained between the next nodes", func() {

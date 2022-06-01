@@ -22,18 +22,18 @@ import (
 // InfoData implements the InfoInterface interface.
 // holds information about a field using a key/value pair.
 type InfoData struct {
-	key   string
-	value []string
+	key    string
+	values []string
 }
 
 // StringIndented return the  String() output but with indentation.
 func (id *InfoData) StringIndented(indent int) string {
 	indentation := strings.Repeat("\t", indent+1)
-	if len(id.value) == 1 {
-		return fmt.Sprintf("%s: %s%s%s", id.key, byellow, id.value[0], reset)
+	if len(id.values) == 1 {
+		return fmt.Sprintf("%s: %s%s%s", id.key, byellow, id.values[0], reset)
 	}
 	msg := fmt.Sprintf("%s:", id.key)
-	for _, v := range id.value {
+	for _, v := range id.values {
 		msg += fmt.Sprintf("\n%s- %s%s%s", indentation, byellow, v, reset)
 	}
 	return msg
@@ -41,7 +41,7 @@ func (id *InfoData) StringIndented(indent int) string {
 
 // StringNoColor return the  String() output but without colors.
 func (id *InfoData) StringNoColor() string {
-	return fmt.Sprintf("%s: %s", id.key, id.value)
+	return fmt.Sprintf("%s: %s", id.key, id.values)
 }
 
 // InfoNode is a node used to link objects implementing InfoInterface in a tree data-structure.
@@ -100,16 +100,9 @@ func deepPrintInfoRecursive(in *InfoNode, msg *string, nodeLevel int) {
 }
 
 // addDataToNode create a new InfoNode and add a new InfoData.
-func (in *InfoNode) addDataToNode(key, value string) {
+func (in *InfoNode) addDataToNode(key string, values ...string) {
 	in.data = append(in.data, InfoData{
-		key: key, value: []string{value},
-	})
-}
-
-//	addDataListToNode create a new InfoNode and add a new InfoData.
-func (in *InfoNode) addDataListToNode(key string, value []string) {
-	in.data = append(in.data, InfoData{
-		key: key, value: value,
+		key: key, values: values,
 	})
 }
 
