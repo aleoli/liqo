@@ -1,0 +1,14 @@
+apiVersion: v1
+entries:
+  liqo:
+  - apiVersion: v2
+    appVersion: v0.5.0-beta.3
+    created: "2022-06-23T09:13:55.025851989Z"
+    description: A Helm chart for Liqo
+    digest: e0229e18d65847eeee41873b9a1e652d040a06b02e38146478eddf84885bcf2e
+    name: liqo
+    type: application
+    urls:
+    - https://github.com/aleoli/liqo/releases/download/v0.5.0-beta.3/liqo-v0.5.0-beta.3.tgz
+    version: v0.5.0-beta.3
+generated: "2022-06-23T09:13:55.025862189Z"
