@@ -81,7 +81,7 @@ type PodReflector struct {
 	remoteRESTConfig     *rest.Config
 	remoteMetricsFactory MetricsFactory
 
-	ipamclient ipam.IpamClient
+	//ipamclient ipam.IpamClient
 	handlers   sync.Map /* implicit signature: map[string]NamespacedPodHandler */
 
 	apiServerSupport forge.APIServerSupportType
@@ -105,7 +105,7 @@ func NewPodReflector(
 	reflector := &PodReflector{
 		remoteRESTConfig:     remoteRESTConfig,
 		remoteMetricsFactory: remoteMetricsFactory,
-		ipamclient:           ipamclient,
+		//ipamclient:           ipamclient,
 		apiServerSupport:     apiServerSupport,
 	}
 
@@ -138,7 +138,7 @@ func (pr *PodReflector) NewNamespaced(opts *options.NamespacedOpts) manager.Name
 		remoteRESTConfig: pr.remoteRESTConfig,
 		remoteMetrics:    pr.remoteMetricsFactory(opts.RemoteNamespace),
 
-		ipamclient:                pr.ipamclient,
+		//ipamclient:                pr.ipamclient,
 		apiServerSupport:          pr.apiServerSupport,
 		kubernetesServiceIPGetter: pr.KubernetesServiceIPGetter(),
 	}
@@ -238,14 +238,15 @@ func (pr *PodReflector) KubernetesServiceIPGetter() func(ctx context.Context) (s
 		}
 
 		// Otherwise we need to interact with the IPAM to retrieve the correct mapping.
-		response, err := pr.ipamclient.MapEndpointIP(ctx, &ipam.MapRequest{
+		/*response, err := pr.ipamclient.MapEndpointIP(ctx, &ipam.MapRequest{
 			ClusterID: forge.RemoteCluster.ClusterID, Ip: kubernetesService})
 		if err != nil {
 			return "", err
 		}
 
 		address = response.Ip
-		return address, nil
+		return address, nil*/
+		return "", nil
 	}
 }
 

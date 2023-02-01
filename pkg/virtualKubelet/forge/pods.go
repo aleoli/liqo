@@ -94,10 +94,13 @@ func LocalPodOffloadedLabel(local *corev1.Pod) (*corev1apply.PodApplyConfigurati
 func LocalPodStatus(remote *corev1.PodStatus, translator PodIPTranslator, restarts int32) corev1.PodStatus {
 	// Translate the relevant IPs
 	if remote.PodIP != "" {
-		remote.PodIP = translator(remote.PodIP)
-		remote.PodIPs = []corev1.PodIP{{IP: remote.PodIP}}
+		//remote.PodIP = translator(remote.PodIP)
+		//remote.PodIPs = []corev1.PodIP{{IP: remote.PodIP}}
+		remote.PodIP = ""
+		remote.PodIPs = []corev1.PodIP{}
 	}
-	remote.HostIP = LiqoNodeIP
+	//remote.HostIP = LiqoNodeIP
+	remote.HostIP = ""
 
 	// Increase the restart count if necessary
 	for idx := range remote.ContainerStatuses {

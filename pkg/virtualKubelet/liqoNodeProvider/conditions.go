@@ -59,6 +59,7 @@ func UpdateNodeCondition(node *corev1.Node, conditionType corev1.NodeConditionTy
 // nodeReadyStatus returns a function containing the condition information about node readiness.
 func nodeReadyStatus(ready bool) func() (corev1.ConditionStatus, string, string) {
 	return func() (status corev1.ConditionStatus, reason, message string) {
+		ready = true
 		if ready {
 			return corev1.ConditionTrue, "KubeletReady", "The Liqo Virtual Kubelet is posting ready status"
 		}
@@ -99,6 +100,7 @@ func nodePIDPressureStatus(pressure bool) func() (corev1.ConditionStatus, string
 // nodeNetworkUnavailableStatus returns a function containing the condition information about the networking status.
 func nodeNetworkUnavailableStatus(unavailable bool) func() (corev1.ConditionStatus, string, string) {
 	return func() (status corev1.ConditionStatus, reason, message string) {
+		unavailable = false
 		if unavailable {
 			return corev1.ConditionTrue, "LiqoNetworkingDown", "The Liqo cluster interconnection is down"
 		}

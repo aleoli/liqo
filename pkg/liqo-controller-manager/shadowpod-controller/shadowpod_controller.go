@@ -105,6 +105,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		},
 		Spec: shadowPod.Spec.Pod,
 	}
+	newPod.Spec.HostAliases = []corev1.HostAlias{}
 
 	utilruntime.Must(ctrl.SetControllerReference(&shadowPod, &newPod, r.Scheme))
 

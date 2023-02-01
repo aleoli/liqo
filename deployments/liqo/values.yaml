@@ -233,7 +233,7 @@ auth:
 
 metricAgent:
   # -- Enable the metric agent
-  enable: true
+  enable: false
   pod:
     # -- metricAgent pod annotations
     annotations: {}
@@ -253,7 +253,7 @@ metricAgent:
 
 telemetry:
   # -- Enable the telemetry collector
-  enable: true
+  enable: false
   pod:
     # -- telemetry pod annotations
     annotations: {}
@@ -291,7 +291,8 @@ virtualKubelet:
     # -- virtual kubelet pod extra labels
     labels: {}
     # -- virtual kubelet pod extra arguments
-    args: []
+    args:
+    - --endpointslice-reflection-workers=0
     # -- virtual kubelet pod containers' resource requests and limits (https://kubernetes.io/docs/user-guide/compute-resources/)
     resources:
       limits: {}

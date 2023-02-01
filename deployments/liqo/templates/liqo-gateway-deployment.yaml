@@ -1,6 +1,8 @@
 ---
 {{- $gatewayConfig := (merge (dict "name" "gateway" "module" "networking") .) -}}
 
+{{ if false }}
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -69,3 +71,5 @@ spec:
                 fieldRef:
                   fieldPath: status.podIP
       hostNetwork: true
+
+{{ end }}

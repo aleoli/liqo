@@ -19,8 +19,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	corev1 "k8s.io/api/core/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
@@ -33,7 +31,6 @@ import (
 	discoveryv1alpha1 "github.com/liqotech/liqo/apis/discovery/v1alpha1"
 	vkalpha1 "github.com/liqotech/liqo/apis/virtualkubelet/v1alpha1"
 	liqoclient "github.com/liqotech/liqo/pkg/client/clientset/versioned"
-	"github.com/liqotech/liqo/pkg/liqonet/ipam"
 	"github.com/liqotech/liqo/pkg/virtualKubelet/forge"
 	"github.com/liqotech/liqo/pkg/virtualKubelet/reflection/configuration"
 	"github.com/liqotech/liqo/pkg/virtualKubelet/reflection/exposition"
@@ -91,14 +88,14 @@ func NewLiqoProvider(ctx context.Context, cfg *InitConfig, eb record.EventBroadc
 	remoteLiqoClient := liqoclient.NewForConfigOrDie(cfg.RemoteConfig)
 	remoteMetricsClient := metrics.NewForConfigOrDie(cfg.RemoteConfig).MetricsV1beta1().PodMetricses
 
-	dialctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	/*dialctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	connection, err := grpc.DialContext(dialctx, cfg.LiqoIpamServer,
 		grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
 	cancel()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to establish a connection to the IPAM")
 	}
-	ipamClient := ipam.NewIpamClient(connection)
+	ipamClient := ipam.NewIpamClient(connection)*/
 
 	apiServerSupport := forge.APIServerSupportDisabled
 	if cfg.EnableAPIServerSupport {
@@ -115,11 +112,11 @@ func NewLiqoProvider(ctx context.Context, cfg *InitConfig, eb record.EventBroadc
 	}
 
 	reflectionManager := manager.New(localClient, remoteClient, localLiqoClient, remoteLiqoClient, cfg.InformerResyncPeriod, eb)
-	podreflector := workload.NewPodReflector(cfg.RemoteConfig, remoteMetricsClient, ipamClient, apiServerSupport, cfg.PodWorkers)
+	podreflector := workload.NewPodReflector(cfg.RemoteConfig, remoteMetricsClient, nil, apiServerSupport, cfg.PodWorkers)
 	namespaceMapHandler := namespacemap.NewHandler(localLiqoClient, cfg.Namespace, cfg.InformerResyncPeriod)
 	reflectionManager.
 		With(exposition.NewServiceReflector(cfg.ServiceWorkers)).
-		With(exposition.NewEndpointSliceReflector(ipamClient, cfg.EndpointSliceWorkers)).
+		//With(exposition.NewEndpointSliceReflector(ipamClient, cfg.EndpointSliceWorkers)).
 		With(exposition.NewIngressReflector(cfg.IngressWorkers)).
 		With(configuration.NewConfigMapReflector(cfg.ConfigMapWorkers)).
 		With(configuration.NewSecretReflector(apiServerSupport == forge.APIServerSupportLegacy, cfg.SecretWorkers)).
