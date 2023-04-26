@@ -39,6 +39,8 @@ import (
 	"github.com/liqotech/liqo/pkg/virtualKubelet/forge"
 )
 
+var _ ResourceReader = &LocalResourceMonitor{}
+
 // LocalResourceMonitor is an object that keeps track of the cluster's resources.
 type LocalResourceMonitor struct {
 	allocatable    corev1.ResourceList
@@ -231,11 +233,35 @@ func (m *LocalResourceMonitor) notifyOrWarn() {
 }
 
 // ReadResources returns the resources available in the cluster (total minus used), multiplied by resourceSharingPercentage.
-func (m *LocalResourceMonitor) ReadResources(_ context.Context, clusterID string) (corev1.ResourceList, error) {
+func (m *LocalResourceMonitor) ReadResources(_ context.Context, clusterID string) ([]*ResourceList, error) {
 	toRead := m.readClusterResources()
 	podsResources := m.readPodResources(clusterID)
 	addResources(toRead, podsResources)
-	return toRead, nil
+	// TODO: support multiple offers
+	resources := make([]*ResourceList, 2)
+	for k, v := range toRead {
+		vCopy := v.DeepCopy()
+		if resources[0] == nil {
+			resources[0] = &ResourceList{}
+		}
+		if resources[0].Resources == nil {
+			resources[0].Resources = map[string]*resource.Quantity{}
+		}
+
+		resources[0].Resources[k.String()] = &vCopy
+
+		vCopy = v.DeepCopy()
+		if resources[1] == nil {
+			resources[1] = &ResourceList{}
+		}
+		if resources[1].Resources == nil {
+			resources[1].Resources = map[string]*resource.Quantity{}
+		}
+
+		resources[1].Resources[k.String()] = &vCopy
+		resources[1].PoolName = "second-pool"
+	}
+	return resources, nil
 }
 
 // RemoveClusterID removes a clusterID from all broadcaster internal structures
