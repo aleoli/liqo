@@ -61,7 +61,8 @@ import (
 	shadowepsctrl "github.com/liqotech/liqo/pkg/liqo-controller-manager/shadowendpointslice-controller"
 	shadowpodctrl "github.com/liqotech/liqo/pkg/liqo-controller-manager/shadowpod-controller"
 	liqostorageprovisioner "github.com/liqotech/liqo/pkg/liqo-controller-manager/storageprovisioner"
-	virtualnodectrl "github.com/liqotech/liqo/pkg/liqo-controller-manager/virtualnode-controller"
+	virtualNodectrl "github.com/liqotech/liqo/pkg/liqo-controller-manager/virtualNode-controller"
+	virtualNodectrl2 "github.com/liqotech/liqo/pkg/liqo-controller-manager/virtualnode-controller2"
 	fcwh "github.com/liqotech/liqo/pkg/liqo-controller-manager/webhooks/foreigncluster"
 	nsoffwh "github.com/liqotech/liqo/pkg/liqo-controller-manager/webhooks/namespaceoffloading"
 	podwh "github.com/liqotech/liqo/pkg/liqo-controller-manager/webhooks/pod"
@@ -163,6 +164,23 @@ func main() {
 	flag.Var(&nodeExtraLabels, "node-extra-labels", "Extra labels to add to the Virtual Node")
 	kubeletIpamServer := flag.String("kubelet-ipam-server", "",
 		"The address of the IPAM server to use for the virtual kubelet (set to empty string to disable IPAM)")
+
+	// Options for the virtual kubelet.
+	virtualKubeletOpts := &forge.VirtualKubeletOpts{
+		ContainerImage:       *kubeletImage,
+		ExtraAnnotations:     kubeletExtraAnnotations.StringMap,
+		ExtraLabels:          kubeletExtraLabels.StringMap,
+		ExtraArgs:            kubeletExtraArgs.StringList,
+		NodeExtraAnnotations: nodeExtraAnnotations,
+		NodeExtraLabels:      nodeExtraLabels,
+		RequestsCPU:          kubeletCPURequests.Quantity,
+		RequestsRAM:          kubeletRAMRequests.Quantity,
+		LimitsCPU:            kubeletCPULimits.Quantity,
+		LimitsRAM:            kubeletRAMLimits.Quantity,
+		IpamEndpoint:         *kubeletIpamServer,
+		MetricsAddress:       kubeletMetricsAddress,
+		MetricsEnabled:       kubeletMetricsEnabled,
+	}
 
 	// Storage Provisioner parameters
 	enableStorage := flag.Bool("enable-storage", false, "enable the liqo virtual storage class")
@@ -445,6 +463,19 @@ func main() {
 		}
 	}
 
+	vn2reconciler := virtualNodectrl2.VirtualNodeReconciler{
+		Client:                mgr.GetClient(),
+		Scheme:                mgr.GetScheme(),
+		EventsRecorder:        mgr.GetEventRecorderFor("virtualnode-controller"),
+		HomeClusterIdentity:   &clusterIdentity,
+		VirtualKubeletOptions: virtualKubeletOpts,
+	}
+
+	if err = vn2reconciler.SetupWithManager(mgr); err != nil {
+		klog.Fatal(err)
+	}
+
+	klog.Info("DEVELOPMENT VERSION")
 	klog.Info("starting manager as controller manager")
 	if err := mgr.Start(ctx); err != nil {
 		klog.Error(err)
