@@ -37,6 +37,7 @@ import (
 	"github.com/liqotech/liqo/pkg/utils"
 	liqoerrors "github.com/liqotech/liqo/pkg/utils/errors"
 	"github.com/liqotech/liqo/pkg/virtualKubelet/forge"
+	"github.com/pterm/pterm"
 )
 
 var _ ResourceReader = &LocalResourceMonitor{}
@@ -238,8 +239,9 @@ func (m *LocalResourceMonitor) ReadResources(_ context.Context, clusterID string
 	podsResources := m.readPodResources(clusterID)
 	addResources(toRead, podsResources)
 	// TODO: support multiple offers
-	resources := make([]*ResourceList, 2)
+	resources := make([]*ResourceList, 1)
 	for k, v := range toRead {
+		pterm.FgGreen.Println("Resource: ", k.String(), " - ", v.String())
 		vCopy := v.DeepCopy()
 		if resources[0] == nil {
 			resources[0] = &ResourceList{}
@@ -249,17 +251,17 @@ func (m *LocalResourceMonitor) ReadResources(_ context.Context, clusterID string
 		}
 
 		resources[0].Resources[k.String()] = &vCopy
+		/*
+			vCopy = v.DeepCopy()
+			if resources[1] == nil {
+				resources[1] = &ResourceList{}
+			}
+			if resources[1].Resources == nil {
+				resources[1].Resources = map[string]*resource.Quantity{}
+			}
 
-		vCopy = v.DeepCopy()
-		if resources[1] == nil {
-			resources[1] = &ResourceList{}
-		}
-		if resources[1].Resources == nil {
-			resources[1].Resources = map[string]*resource.Quantity{}
-		}
-
-		resources[1].Resources[k.String()] = &vCopy
-		resources[1].PoolName = "second-pool"
+			resources[1].Resources[k.String()] = &vCopy
+			resources[1].PoolName = "second-pool" */
 	}
 	return resources, nil
 }

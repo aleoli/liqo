@@ -20,6 +20,7 @@ import (
 	"strconv"
 
 	corev1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/klog/v2"
@@ -31,29 +32,40 @@ import (
 	liqoconst "github.com/liqotech/liqo/pkg/consts"
 	"github.com/liqotech/liqo/pkg/utils"
 	foreignclusterutils "github.com/liqotech/liqo/pkg/utils/foreignCluster"
+	"github.com/liqotech/liqo/pkg/utils/getters"
 )
 
 // ensureNamespaceMapPresence creates a new NamespaceMap associated with that virtual-node if it is not already present.
 func (r *VirtualNodeReconciler) ensureNamespaceMapPresence(ctx context.Context, fc *discoveryv1alpha1.ForeignCluster, n *corev1.Node) error {
-	nm := mapsv1alpha1.NamespaceMap{ObjectMeta: metav1.ObjectMeta{
+	l := map[string]string{
+		liqoconst.RemoteClusterID:             fc.Spec.ClusterIdentity.ClusterID,
+		liqoconst.ReplicationRequestedLabel:   strconv.FormatBool(true),
+		liqoconst.ReplicationDestinationLabel: fc.Spec.ClusterIdentity.ClusterID,
+	}
+	nm, err := getters.GetNamespaceMapByLabel(ctx, r.Client, fc.Status.TenantNamespace.Local, labels.SelectorFromSet(l))
+	if err != nil && !kerrors.IsNotFound(err) {
+		klog.Errorf("%s -> unable to retrieve NamespaceMap %q", err, nm.Name)
+		return err
+	} else if err == nil {
+		klog.Infof("NamespaceMap %q already exists in namespace %s", nm.Name, nm.Namespace)
+		return nil
+	}
+
+	nm = &mapsv1alpha1.NamespaceMap{ObjectMeta: metav1.ObjectMeta{
 		Name: foreignclusterutils.UniqueName(&fc.Spec.ClusterIdentity), Namespace: fc.Status.TenantNamespace.Local}}
 
-	result, err := ctrlutils.CreateOrUpdate(ctx, r.Client, &nm, func() error {
-		nm.Labels = labels.Merge(nm.Labels, map[string]string{
-			liqoconst.RemoteClusterID:             fc.Spec.ClusterIdentity.ClusterID,
-			liqoconst.ReplicationRequestedLabel:   strconv.FormatBool(true),
-			liqoconst.ReplicationDestinationLabel: fc.Spec.ClusterIdentity.ClusterID,
-		})
+	result, err := ctrlutils.CreateOrUpdate(ctx, r.Client, nm, func() error {
+		nm.Labels = labels.Merge(nm.Labels, l)
 
-		return ctrlutils.SetControllerReference(n, &nm, r.Scheme)
+		return ctrlutils.SetControllerReference(n, nm, r.Scheme)
 	})
 
 	if err != nil {
-		klog.Errorf("Failed to enforce NamespaceMap %q: %v", klog.KObj(&nm), err)
+		klog.Errorf("Failed to enforce NamespaceMap %q: %v", klog.KObj(nm), err)
 		return err
 	}
 
-	klog.V(utils.FromResult(result)).Infof("NamespaceMap %q successfully enforced (with %v operation)", klog.KObj(&nm), result)
+	klog.V(utils.FromResult(result)).Infof("NamespaceMap %q successfully enforced (with %v operation)", klog.KObj(nm), result)
 	return nil
 }
 
