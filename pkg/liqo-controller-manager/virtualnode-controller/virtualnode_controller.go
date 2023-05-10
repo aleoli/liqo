@@ -37,7 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	discoveryv1alpha1 "github.com/liqotech/liqo/apis/discovery/v1alpha1"
-	virtualkubeletv1alpha "github.com/liqotech/liqo/apis/virtualkubelet/v1alpha1"
+	virtualkubeletv1alpha1 "github.com/liqotech/liqo/apis/virtualkubelet/v1alpha1"
 	"github.com/liqotech/liqo/pkg/discovery"
 	"github.com/liqotech/liqo/pkg/vkMachinery"
 	vkforge "github.com/liqotech/liqo/pkg/vkMachinery/forge"
@@ -57,14 +57,19 @@ type VirtualNodeReconciler struct {
 }
 
 // cluster-role
+// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch;patch;update
+// +kubebuilder:rbac:groups="",resources=nodes/finalizers,verbs=get;update;patch
 // +kubebuilder:rbac:groups=virtualkubelet.liqo.io,resources=virtualnodes,verbs=get;list;watch;delete;create;update;patch
 // +kubebuilder:rbac:groups=virtualkubelet.liqo.io,resources=virtualnodes/finalizers,verbs=get;list;watch;delete;create;update;patch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;delete;create;update;patch
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;delete;create;update;patch
+// +kubebuilder:rbac:groups=virtualkubelet.liqo.io,resources=namespacemaps,verbs=get;list;watch;delete;create
+// +kubebuilder:rbac:groups=discovery.liqo.io,resources=foreignclusters,verbs=get;list;watch
 
 // Reconcile manage NamespaceMaps associated with the virtual-node.
 func (r *VirtualNodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	virtualNode := &virtualkubeletv1alpha.VirtualNode{}
+	pterm.FgLightYellow.Println("Reconciling", req.NamespacedName)
+	virtualNode := &virtualkubeletv1alpha1.VirtualNode{}
 	if err := r.Get(ctx, req.NamespacedName, virtualNode); err != nil {
 		if apierrors.IsNotFound(err) {
 			klog.Infof("There is no a virtual-node called '%s' in '%s'", req.Name, req.Namespace)
@@ -74,30 +79,44 @@ func (r *VirtualNodeReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, err
 	}
 
-	r.ensureVirtualNodeFinalizerPresence(ctx, virtualNode)
-
-	if !virtualNode.DeletionTimestamp.IsZero() {
-		if ctrlutil.ContainsFinalizer(virtualNode, virtualNodeControllerFinalizer) {
-			pterm.FgYellow.Printfln("Deleting the virtual-node '%s' in '%s'", req.Name, req.Namespace)
-			if err := r.deleteVirtualKubeletDeployment(ctx, virtualNode); err != nil {
-				return ctrl.Result{}, err
-			}
-			if err := r.deleteClusterRoleBinding(ctx, virtualNode); err != nil {
-				return ctrl.Result{}, err
-			}
-			ctrlutil.RemoveFinalizer(virtualNode, virtualNodeControllerFinalizer)
-			if err := r.Update(ctx, virtualNode); err != nil {
-				return ctrl.Result{}, err
-			}
-			return ctrl.Result{}, nil
-		}
+	// It is necessary to have a finalizer on the virtual-node.
+	if err := r.ensureVirtualNodeFinalizerPresence(ctx, virtualNode); err != nil {
+		return ctrl.Result{}, err
 	}
 
-	if err := r.createVirtualKubeletDeployment(ctx, virtualNode); err != nil {
+	// It creates the virtual-kubelet deployment.
+	if err := r.ensureVirtualKubeletDeploymentPresence(ctx, virtualNode); err != nil {
 		klog.Errorf(" %s --> Unable to create the virtual-kubelet deployment", err)
 		return ctrl.Result{}, err
 	}
 
+	// If there is no NamespaceMap associated with this virtual-node, it creates a new one.
+	if err := r.ensureNamespaceMapPresence(ctx, virtualNode); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	if virtualNode.DeletionTimestamp.IsZero() {
+		if !ctrlutil.ContainsFinalizer(virtualNode, virtualNodeControllerFinalizer) {
+			if err := r.ensureVirtualNodeFinalizerPresence(ctx, virtualNode); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+	} else {
+		if ctrlutil.ContainsFinalizer(virtualNode, virtualNodeControllerFinalizer) {
+			pterm.FgYellow.Printfln("Deleting the virtual-node '%s' in '%s'", req.Name, req.Namespace)
+			if err := r.ensureVirtualKubeletDeploymentAbsence(ctx, virtualNode); err != nil {
+				return ctrl.Result{}, err
+			}
+			if err := r.ensureNamespaceMapAbsence(ctx, virtualNode); err != nil {
+				return ctrl.Result{}, err
+			}
+			if err := r.removeVirtualNodeFinalizer(ctx, virtualNode); err != nil {
+				return ctrl.Result{}, err
+			}
+
+			return ctrl.Result{}, nil
+		}
+	}
 	return ctrl.Result{}, nil
 }
 
@@ -122,7 +141,7 @@ func (r *VirtualNodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		)
 	}
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&virtualkubeletv1alpha.VirtualNode{}).Watches(
+		For(&virtualkubeletv1alpha1.VirtualNode{}).Watches(
 		&source.Kind{Type: &appsv1.Deployment{}},
 		&handler.Funcs{
 			DeleteFunc: func(de event.DeleteEvent, rli workqueue.RateLimitingInterface) {
@@ -137,26 +156,3 @@ func (r *VirtualNodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		builder.WithPredicates(deployPredicate),
 	).Complete(r)
 }
-
-func (r *VirtualNodeReconciler) ensureVirtualNodeFinalizerPresence(ctx context.Context, virtualNode *virtualkubeletv1alpha.VirtualNode) {
-	if virtualNode.ObjectMeta.DeletionTimestamp.IsZero() {
-		if !ctrlutil.ContainsFinalizer(virtualNode, virtualNodeControllerFinalizer) {
-			ctrlutil.AddFinalizer(virtualNode, virtualNodeControllerFinalizer)
-			if err := r.Update(ctx, virtualNode); err != nil {
-				klog.Errorf(" %s --> Unable to add the finalizer to the virtual-node", err)
-			}
-		}
-	}
-}
-
-/* func (r *VirtualNodeReconciler) getCondition(virtualNode *virtualkubeletv1alpha.VirtualNode, virtualNodeConditionType virtualkubeletv1alpha.VirtualNodeConditionType) *virtualkubeletv1alpha.VirtualNodeCondition {
-	if virtualNode.Status.Conditions == nil {
-		return nil
-	}
-	return &virtualNode.Status.Conditions[len(virtualNode.Status.Conditions)-1]
-}
-
-func (r *VirtualNodeReconciler) setCondition(virtualNode *virtualkubeletv1alpha.VirtualNode, conditionType virtualkubeletv1alpha.VirtualNodeConditionStatusType) virtualkubeletv1alpha.VirtualNodeConditionType {
-
-}
-*/

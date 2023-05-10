@@ -32,7 +32,7 @@ import (
 )
 
 // createVirtualKubeletDeployment creates the VirtualKubelet Deployment.
-func (r *VirtualNodeReconciler) createVirtualKubeletDeployment(
+func (r *VirtualNodeReconciler) ensureVirtualKubeletDeploymentPresence(
 	ctx context.Context, virtualNode *virtualkubeletv1alpha1.VirtualNode) error {
 	namespace := virtualNode.Namespace
 	remoteClusterIdentity := virtualNode.Spec.ClusterIdentity
@@ -84,8 +84,8 @@ func (r *VirtualNodeReconciler) createVirtualKubeletDeployment(
 	return nil
 }
 
-// deleteVirtualKubeletDeployment deletes the VirtualKubelet Deployment.
-func (r *VirtualNodeReconciler) deleteVirtualKubeletDeployment(
+// ensureVirtualKubeletDeploymentAbsence deletes the VirtualKubelet Deployment.
+func (r *VirtualNodeReconciler) ensureVirtualKubeletDeploymentAbsence(
 	ctx context.Context, virtualNode *virtualkubeletv1alpha1.VirtualNode) error {
 	virtualKubeletDeployment, err := r.getVirtualKubeletDeployment(ctx, virtualNode)
 	if err != nil {
@@ -104,13 +104,8 @@ func (r *VirtualNodeReconciler) deleteVirtualKubeletDeployment(
 	msg := fmt.Sprintf("[%v] Deleting virtual-kubelet in namespace %v", virtualNode.Spec.ClusterIdentity.ClusterID, virtualNode.Namespace)
 	klog.Info(msg)
 	r.EventsRecorder.Event(virtualNode, "Normal", "VkDeleted", msg)
-	return nil
-}
 
-// deleteClusterRoleBinding deletes the ClusterRoleBinding related to a remote clusterID if it has just one virtualkubelet deployment associated.
-func (r *VirtualNodeReconciler) deleteClusterRoleBinding(
-	ctx context.Context, virtualNode *virtualkubeletv1alpha1.VirtualNode) error {
-	labels := forge.ClusterRoleLabels(virtualNode.Spec.ClusterIdentity.ClusterID)
+	crlabels := forge.ClusterRoleLabels(virtualNode.Spec.ClusterIdentity.ClusterID)
 
 	virtualnodes := &virtualkubeletv1alpha1.VirtualNodeList{}
 	if err := r.Client.List(ctx, virtualnodes, client.MatchingLabels{discovery.ClusterIDLabel: virtualNode.Spec.ClusterIdentity.ClusterID}); err != nil {
@@ -122,7 +117,7 @@ func (r *VirtualNodeReconciler) deleteClusterRoleBinding(
 		return nil
 	}
 
-	if err := r.Client.DeleteAllOf(ctx, &rbacv1.ClusterRoleBinding{}, client.MatchingLabels(labels)); err != nil {
+	if err := r.Client.DeleteAllOf(ctx, &rbacv1.ClusterRoleBinding{}, client.MatchingLabels(crlabels)); err != nil {
 		klog.Error(err)
 		return err
 	}

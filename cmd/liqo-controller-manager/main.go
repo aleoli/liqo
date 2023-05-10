@@ -61,8 +61,7 @@ import (
 	shadowepsctrl "github.com/liqotech/liqo/pkg/liqo-controller-manager/shadowendpointslice-controller"
 	shadowpodctrl "github.com/liqotech/liqo/pkg/liqo-controller-manager/shadowpod-controller"
 	liqostorageprovisioner "github.com/liqotech/liqo/pkg/liqo-controller-manager/storageprovisioner"
-	virtualNodectrl "github.com/liqotech/liqo/pkg/liqo-controller-manager/virtualNode-controller"
-	virtualNodectrl2 "github.com/liqotech/liqo/pkg/liqo-controller-manager/virtualnode-controller2"
+	virtualnodectrl "github.com/liqotech/liqo/pkg/liqo-controller-manager/virtualnode-controller"
 	fcwh "github.com/liqotech/liqo/pkg/liqo-controller-manager/webhooks/foreigncluster"
 	nsoffwh "github.com/liqotech/liqo/pkg/liqo-controller-manager/webhooks/namespaceoffloading"
 	podwh "github.com/liqotech/liqo/pkg/liqo-controller-manager/webhooks/pod"
@@ -179,6 +178,7 @@ func main() {
 	klog.InitFlags(nil)
 	flag.Parse()
 
+	_ = kubeletImage
 	// Options for the virtual kubelet.
 	virtualKubeletOpts := &forge.VirtualKubeletOpts{
 		ContainerImage:       "localhost:5001/virtual-kubelet",
@@ -348,9 +348,12 @@ func main() {
 		klog.Fatal(err)
 	}
 
-	virtualNodeReconciler := &virtualNodectrl.VirtualNodeReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+	virtualNodeReconciler := &virtualnodectrl.VirtualNodeReconciler{
+		Client:                mgr.GetClient(),
+		Scheme:                mgr.GetScheme(),
+		EventsRecorder:        mgr.GetEventRecorderFor("virtualnode-controller"),
+		HomeClusterIdentity:   &clusterIdentity,
+		VirtualKubeletOptions: virtualKubeletOpts,
 	}
 
 	if err = virtualNodeReconciler.SetupWithManager(mgr); err != nil {
@@ -442,19 +445,6 @@ func main() {
 		}
 	}
 
-	vn2reconciler := virtualNodectrl2.VirtualNodeReconciler{
-		Client:                mgr.GetClient(),
-		Scheme:                mgr.GetScheme(),
-		EventsRecorder:        mgr.GetEventRecorderFor("virtualnode-controller"),
-		HomeClusterIdentity:   &clusterIdentity,
-		VirtualKubeletOptions: virtualKubeletOpts,
-	}
-
-	if err = vn2reconciler.SetupWithManager(mgr); err != nil {
-		klog.Fatal(err)
-	}
-
-	klog.Info("DEVELOPMENT VERSION")
 	klog.Info("starting manager as controller manager")
 	if err := mgr.Start(ctx); err != nil {
 		klog.Error(err)
