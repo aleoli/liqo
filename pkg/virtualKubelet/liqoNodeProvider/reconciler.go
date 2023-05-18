@@ -74,10 +74,10 @@ func (p *LiqoNodeProvider) reconcileNodeFromResourceOffer(event watch.Event) err
 		p.node.Status.Capacity = v1.ResourceList{}
 		p.onNodeChangeCallback(p.node.DeepCopy())
 
-		if err := p.handleResourceOfferDelete(&resourceOffer); err != nil {
+		/* if err := p.handleResourceOfferDelete(&resourceOffer); err != nil {
 			klog.Errorf("something went wrong during resourceOffer deletion - %v", err)
 			return err
-		}
+		} */
 		return nil
 	}
 

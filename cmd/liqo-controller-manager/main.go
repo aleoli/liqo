@@ -327,7 +327,7 @@ func main() {
 	// this is a temporary solution to avoid deleting all those flags
 	// and recreate them when the VirtualNode operator will be added.
 	_ = &forge.VirtualKubeletOpts{
-		ContainerImage:       *kubeletImage,
+		ContainerImage:       "localhost:5001/virtual-kubelet",
 		ExtraAnnotations:     kubeletExtraAnnotations.StringMap,
 		ExtraLabels:          kubeletExtraLabels.StringMap,
 		ExtraArgs:            kubeletExtraArgs.StringList,
@@ -356,7 +356,7 @@ func main() {
 		VirtualKubeletOptions: virtualKubeletOpts,
 	}
 
-	if err = virtualNodeReconciler.SetupWithManager(mgr); err != nil {
+	if err = virtualNodeReconciler.SetupWithManager(ctx, mgr); err != nil {
 		klog.Fatal(err)
 	}
 
