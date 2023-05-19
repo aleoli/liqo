@@ -24,6 +24,8 @@ import (
 	virtualkubeletv1alpha1 "github.com/liqotech/liqo/apis/virtualkubelet/v1alpha1"
 	"github.com/liqotech/liqo/pkg/utils/getters"
 	"github.com/pterm/pterm"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -34,7 +36,7 @@ var (
 
 type DeletionRoutine struct {
 	vnr                  *VirtualNodeReconciler
-	drChan               chan *virtualkubeletv1alpha1.VirtualNode
+	wq                   workqueue.DelayingInterface
 	virtualNodesDeleting map[string]interface{}
 }
 
@@ -45,7 +47,7 @@ func RunDeletionRoutine(r *VirtualNodeReconciler) (*DeletionRoutine, error) {
 	deletionRoutineRunning = true
 	dr := &DeletionRoutine{
 		vnr:                  r,
-		drChan:               make(chan *virtualkubeletv1alpha1.VirtualNode),
+		wq:                   workqueue.NewDelayingQueue(),
 		virtualNodesDeleting: make(map[string]interface{}),
 	}
 	go dr.run()
@@ -55,7 +57,8 @@ func RunDeletionRoutine(r *VirtualNodeReconciler) (*DeletionRoutine, error) {
 func (dr *DeletionRoutine) run() {
 	pterm.FgGreen.Print("Starting deletion routine")
 	ctx := context.TODO()
-	for vn := range dr.drChan {
+	wait.Poll
+	for vn := range dr.wq.Get() {
 		pterm.FgGreen.Printfln("Deleting virtual node: %s", vn.Name)
 		node, err := getters.GetNodeFromVirtualNode(ctx, dr.vnr.Client, vn)
 		if err != nil {
