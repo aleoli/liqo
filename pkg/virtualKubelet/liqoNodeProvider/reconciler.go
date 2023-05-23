@@ -81,12 +81,12 @@ func (p *LiqoNodeProvider) reconcileNodeFromResourceOffer(event watch.Event) err
 		return nil
 	}
 
-	if err := p.ensureFinalizer(&resourceOffer, func() bool {
+	/*if err := p.ensureFinalizer(&resourceOffer, func() bool {
 		return !controllerutil.ContainsFinalizer(&resourceOffer, consts.NodeFinalizer)
 	}, controllerutil.AddFinalizer); err != nil {
 		klog.Error(err)
 		return err
-	}
+	}*/
 
 	if err := p.updateFromResourceOffer(&resourceOffer); err != nil {
 		klog.Errorf("node update from resourceOffer %v failed for reason %v; retry...", resourceOffer.Name, err)

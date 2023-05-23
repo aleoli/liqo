@@ -444,18 +444,6 @@ func main() {
 		}
 	}
 
-	vn2reconciler := virtualNodectrl2.VirtualNodeReconciler{
-		Client:                mgr.GetClient(),
-		Scheme:                mgr.GetScheme(),
-		EventsRecorder:        mgr.GetEventRecorderFor("virtualnode-controller"),
-		HomeClusterIdentity:   &clusterIdentity,
-		VirtualKubeletOptions: virtualKubeletOpts,
-	}
-
-	if err = vn2reconciler.SetupWithManager(mgr); err != nil {
-		klog.Fatal(err)
-	}
-
 	klog.Info("DEVELOPMENT VERSION")
 	klog.Info("starting manager as controller manager")
 	if err := mgr.Start(ctx); err != nil {
