@@ -61,11 +61,12 @@ import (
 	shadowepsctrl "github.com/liqotech/liqo/pkg/liqo-controller-manager/shadowendpointslice-controller"
 	shadowpodctrl "github.com/liqotech/liqo/pkg/liqo-controller-manager/shadowpod-controller"
 	liqostorageprovisioner "github.com/liqotech/liqo/pkg/liqo-controller-manager/storageprovisioner"
-	virtualNodectrl "github.com/liqotech/liqo/pkg/liqo-controller-manager/virtualNode-controller"
+	virtualnodectrl "github.com/liqotech/liqo/pkg/liqo-controller-manager/virtualnode-controller"
 	fcwh "github.com/liqotech/liqo/pkg/liqo-controller-manager/webhooks/foreigncluster"
 	nsoffwh "github.com/liqotech/liqo/pkg/liqo-controller-manager/webhooks/namespaceoffloading"
 	podwh "github.com/liqotech/liqo/pkg/liqo-controller-manager/webhooks/pod"
 	shadowpodswh "github.com/liqotech/liqo/pkg/liqo-controller-manager/webhooks/shadowpod"
+	virtualnodewh "github.com/liqotech/liqo/pkg/liqo-controller-manager/webhooks/virtualnode"
 	peeringroles "github.com/liqotech/liqo/pkg/peering-roles"
 	tenantnamespace "github.com/liqotech/liqo/pkg/tenantNamespace"
 	argsutils "github.com/liqotech/liqo/pkg/utils/args"
@@ -177,6 +178,23 @@ func main() {
 	klog.InitFlags(nil)
 	flag.Parse()
 
+	// Options for the virtual kubelet.
+	virtualKubeletOpts := &forge.VirtualKubeletOpts{
+		ContainerImage:       *kubeletImage,
+		ExtraAnnotations:     kubeletExtraAnnotations.StringMap,
+		ExtraLabels:          kubeletExtraLabels.StringMap,
+		ExtraArgs:            kubeletExtraArgs.StringList,
+		NodeExtraAnnotations: nodeExtraAnnotations,
+		NodeExtraLabels:      nodeExtraLabels,
+		RequestsCPU:          kubeletCPURequests.Quantity,
+		RequestsRAM:          kubeletRAMRequests.Quantity,
+		LimitsCPU:            kubeletCPULimits.Quantity,
+		LimitsRAM:            kubeletRAMLimits.Quantity,
+		IpamEndpoint:         *kubeletIpamServer,
+		MetricsAddress:       kubeletMetricsAddress,
+		MetricsEnabled:       kubeletMetricsEnabled,
+	}
+
 	clusterIdentity := clusterIdentityFlags.ReadOrDie()
 
 	ctx := ctrl.SetupSignalHandler()
@@ -230,6 +248,7 @@ func main() {
 	mgr.GetWebhookServer().Register("/validate/shadowpods", &webhook.Admission{Handler: spv})
 	mgr.GetWebhookServer().Register("/validate/namespace-offloading", nsoffwh.New())
 	mgr.GetWebhookServer().Register("/mutate/pod", podwh.New(mgr.GetClient()))
+	mgr.GetWebhookServer().Register("/mutate/virtualnodes", virtualnodewh.New(mgr.GetClient(), &clusterIdentity, virtualKubeletOpts))
 
 	clientset := kubernetes.NewForConfigOrDie(config)
 
@@ -304,8 +323,10 @@ func main() {
 		klog.Fatal(err)
 	}
 
-	virtualKubeletOpts := &forge.VirtualKubeletOpts{
-		ContainerImage:       *kubeletImage,
+	// this is a temporary solution to avoid deleting all those flags
+	// and recreate them when the VirtualNode operator will be added.
+	_ = &forge.VirtualKubeletOpts{
+		ContainerImage:       "localhost:5001/virtual-kubelet",
 		ExtraAnnotations:     kubeletExtraAnnotations.StringMap,
 		ExtraLabels:          kubeletExtraLabels.StringMap,
 		ExtraArgs:            kubeletExtraArgs.StringList,
@@ -321,17 +342,20 @@ func main() {
 	}
 
 	resourceOfferReconciler := resourceoffercontroller.NewResourceOfferController(
-		mgr, clusterIdentity, *resyncPeriod, *liqoNamespace, virtualKubeletOpts, *offerDisableAutoAccept)
+		mgr, idManager, *resyncPeriod, *offerDisableAutoAccept)
 	if err = resourceOfferReconciler.SetupWithManager(mgr); err != nil {
 		klog.Fatal(err)
 	}
 
-	virtualNodeReconciler := &virtualNodectrl.VirtualNodeReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+	virtualNodeReconciler := &virtualnodectrl.VirtualNodeReconciler{
+		Client:                mgr.GetClient(),
+		Scheme:                mgr.GetScheme(),
+		EventsRecorder:        mgr.GetEventRecorderFor("virtualnode-controller"),
+		HomeClusterIdentity:   &clusterIdentity,
+		VirtualKubeletOptions: virtualKubeletOpts,
 	}
 
-	if err = virtualNodeReconciler.SetupWithManager(mgr); err != nil {
+	if err = virtualNodeReconciler.SetupWithManager(ctx, mgr); err != nil {
 		klog.Fatal(err)
 	}
 
@@ -420,6 +444,7 @@ func main() {
 		}
 	}
 
+	klog.Info("DEVELOPMENT VERSION")
 	klog.Info("starting manager as controller manager")
 	if err := mgr.Start(ctx); err != nil {
 		klog.Error(err)

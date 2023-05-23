@@ -56,8 +56,7 @@ func NewOfferQueue(offerUpdater *OfferUpdater) OfferQueue {
 
 // Start starts the update loop and blocks.
 func (u *OfferQueue) Start(ctx context.Context) error {
-	go wait.Until(u.run, 2*time.Second, ctx.Done())
-	<-ctx.Done()
+	wait.UntilWithContext(ctx, u.run, 2*time.Second)
 	u.queue.ShutDown()
 	return nil // For compatibility with manager.Runnable
 }
@@ -72,13 +71,13 @@ func (u *OfferQueue) Push(cluster discoveryv1alpha1.ClusterIdentity) {
 }
 
 // run processes items in the queue forever.
-func (u *OfferQueue) run() {
-	for u.processNextItem() {
+func (u *OfferQueue) run(ctx context.Context) {
+	for u.processNextItem(ctx) {
 	}
 }
 
 // processNextItem blocks on getting an item from the queue and processes it.
-func (u *OfferQueue) processNextItem() bool {
+func (u *OfferQueue) processNextItem(ctx context.Context) bool {
 	obj, shutdown := u.queue.Get()
 	if shutdown {
 		return false
@@ -86,7 +85,7 @@ func (u *OfferQueue) processNextItem() bool {
 	cluster := u.identities[obj.(string)]
 
 	klog.V(2).Infof("Processing cluster %s", cluster.ClusterName)
-	requeue, err := u.offerUpdater.CreateOrUpdateOffer(cluster)
+	requeue, err := u.offerUpdater.CreateOrUpdateOffer(ctx, cluster)
 	if err != nil {
 		klog.Errorf("Error processing cluster %s: %s", cluster.ClusterName, err)
 		if requeue {

@@ -130,7 +130,7 @@ func (r *ResourceRequestReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	switch resourceReqPhase {
 	case allowResourceRequestPhase:
 		// ensure that we are offering resources to this remote cluster
-		_, err = r.OfferUpdater.CreateOrUpdateOffer(remoteCluster) // don't care about requeue: the controller will requeue anyway
+		_, err = r.OfferUpdater.CreateOrUpdateOffer(ctx, remoteCluster) // don't care about requeue: the controller will requeue anyway
 		if err != nil {
 			klog.Errorf("Error creating a ResourceOffer: %s", err)
 			return ctrl.Result{}, err
@@ -138,7 +138,7 @@ func (r *ResourceRequestReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		resourceRequest.Status.OfferWithdrawalTimestamp = nil
 	case denyResourceRequestPhase, deletingResourceRequestPhase:
 		// ensure to invalidate any resource offered to the remote cluster
-		err = r.invalidateResourceOffer(ctx, &resourceRequest)
+		err = r.invalidateResourceOffers(ctx, &resourceRequest)
 		if err != nil {
 			klog.Errorf("%s -> Error invalidating resourceOffer: %s", remoteCluster.ClusterName, err)
 			return ctrl.Result{}, err
