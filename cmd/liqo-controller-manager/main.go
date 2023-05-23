@@ -61,8 +61,7 @@ import (
 	shadowepsctrl "github.com/liqotech/liqo/pkg/liqo-controller-manager/shadowendpointslice-controller"
 	shadowpodctrl "github.com/liqotech/liqo/pkg/liqo-controller-manager/shadowpod-controller"
 	liqostorageprovisioner "github.com/liqotech/liqo/pkg/liqo-controller-manager/storageprovisioner"
-	virtualNodectrl "github.com/liqotech/liqo/pkg/liqo-controller-manager/virtualNode-controller"
-	virtualNodectrl2 "github.com/liqotech/liqo/pkg/liqo-controller-manager/virtualnode-controller2"
+	virtualnodectrl "github.com/liqotech/liqo/pkg/liqo-controller-manager/virtualnode-controller"
 	fcwh "github.com/liqotech/liqo/pkg/liqo-controller-manager/webhooks/foreigncluster"
 	nsoffwh "github.com/liqotech/liqo/pkg/liqo-controller-manager/webhooks/namespaceoffloading"
 	podwh "github.com/liqotech/liqo/pkg/liqo-controller-manager/webhooks/pod"
@@ -165,23 +164,6 @@ func main() {
 	kubeletIpamServer := flag.String("kubelet-ipam-server", "",
 		"The address of the IPAM server to use for the virtual kubelet (set to empty string to disable IPAM)")
 
-	// Options for the virtual kubelet.
-	virtualKubeletOpts := &forge.VirtualKubeletOpts{
-		ContainerImage:       *kubeletImage,
-		ExtraAnnotations:     kubeletExtraAnnotations.StringMap,
-		ExtraLabels:          kubeletExtraLabels.StringMap,
-		ExtraArgs:            kubeletExtraArgs.StringList,
-		NodeExtraAnnotations: nodeExtraAnnotations,
-		NodeExtraLabels:      nodeExtraLabels,
-		RequestsCPU:          kubeletCPURequests.Quantity,
-		RequestsRAM:          kubeletRAMRequests.Quantity,
-		LimitsCPU:            kubeletCPULimits.Quantity,
-		LimitsRAM:            kubeletRAMLimits.Quantity,
-		IpamEndpoint:         *kubeletIpamServer,
-		MetricsAddress:       kubeletMetricsAddress,
-		MetricsEnabled:       kubeletMetricsEnabled,
-	}
-
 	// Storage Provisioner parameters
 	enableStorage := flag.Bool("enable-storage", false, "enable the liqo virtual storage class")
 	virtualStorageClassName := flag.String("virtual-storage-class-name", "liqo", "Name of the virtual storage class")
@@ -196,7 +178,6 @@ func main() {
 	klog.InitFlags(nil)
 	flag.Parse()
 
-	_ = kubeletImage
 	// Options for the virtual kubelet.
 	virtualKubeletOpts := &forge.VirtualKubeletOpts{
 		ContainerImage:       *kubeletImage,
