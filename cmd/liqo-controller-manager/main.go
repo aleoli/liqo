@@ -181,7 +181,7 @@ func main() {
 	_ = kubeletImage
 	// Options for the virtual kubelet.
 	virtualKubeletOpts := &forge.VirtualKubeletOpts{
-		ContainerImage:       "localhost:5001/virtual-kubelet",
+		ContainerImage:       *kubeletImage,
 		ExtraAnnotations:     kubeletExtraAnnotations.StringMap,
 		ExtraLabels:          kubeletExtraLabels.StringMap,
 		ExtraArgs:            kubeletExtraArgs.StringList,

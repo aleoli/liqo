@@ -307,7 +307,7 @@ webhook:
 
 virtualKubelet:
   # -- Image repository for the virtual kubelet.
-  imageName: "ghcr.io/liqotech/virtual-kubelet"
+  imageName: "localhost:5001/virtual-kubelet"
   # Additional values that are added to virtual kubelet deployments and pods.
   extra:
     # -- Annotations for the virtual kubelet pod.

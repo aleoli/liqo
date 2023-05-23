@@ -57,28 +57,29 @@ func RunDeletionRoutine(r *VirtualNodeReconciler) (*DeletionRoutine, error) {
 func (dr *DeletionRoutine) run() {
 	pterm.FgGreen.Print("Starting deletion routine")
 	ctx := context.TODO()
-	wait.Poll
-	for vn := range dr.wq.Get() {
+	wait.Forever(func() {
+		vni, _ := dr.wq.Get()
+		vn := vni.(*virtualkubeletv1alpha1.VirtualNode)
 		pterm.FgGreen.Printfln("Deleting virtual node: %s", vn.Name)
 		node, err := getters.GetNodeFromVirtualNode(ctx, dr.vnr.Client, vn)
 		if err != nil {
 			klog.Errorf("error getting node from virtual node: %v", err)
-			continue
+			return
 		}
 
 		if err := client.IgnoreNotFound(cordonNode(ctx, dr.vnr.Client, node)); err != nil {
 			klog.Errorf("error cordoning node: %v", err)
-			continue
+			return
 		}
 
 		if err := client.IgnoreNotFound(drainNode(ctx, dr.vnr.Client, vn)); err != nil {
 			klog.Errorf("error draining node: %v", err)
-			continue
+			return
 		}
 
 		if err := client.IgnoreNotFound(dr.vnr.Client.Delete(ctx, node, &client.DeleteOptions{})); err != nil {
 			klog.Errorf("error deleting node: %v", err)
-			continue
+			return
 		}
 
 		err = dr.vnr.removeVirtualNodeFinalizer(ctx, vn)
@@ -88,11 +89,11 @@ func (dr *DeletionRoutine) run() {
 
 		delete(dr.virtualNodesDeleting, vn.Name)
 
-		time.Sleep(5 * time.Hour)
-	}
+		return
+	}, time.Second)
 }
 
-// DeleteVirtualNode adds a virtual node to the deletion queue
+// DeleteVirtualNode adds a virtual node to the deletion queue.
 func (dr *DeletionRoutine) DeleteVirtualNode(vn *virtualkubeletv1alpha1.VirtualNode) {
 	pterm.FgBlue.Println("Deleting virtual node")
 	if _, ok := dr.virtualNodesDeleting[vn.Name]; ok {
@@ -100,5 +101,5 @@ func (dr *DeletionRoutine) DeleteVirtualNode(vn *virtualkubeletv1alpha1.VirtualN
 	}
 	dr.virtualNodesDeleting[vn.Name] = struct{}{}
 	pterm.FgRed.Println("Adding virtual node to deletion queue")
-	dr.drChan <- vn
+	dr.wq.Add(vn)
 }
