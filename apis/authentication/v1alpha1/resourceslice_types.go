@@ -112,6 +112,7 @@ type ResourceSliceStatus struct {
 	LoadBalancerClasses []sharingv1alpha1.LoadBalancerType `json:"loadBalancerClasses,omitempty"`
 	// NodeLabels contains the provider cluster labels.
 	NodeLabels map[string]string `json:"nodeLabels,omitempty"`
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"` // to be added to offloading patches
 }
 
 // +kubebuilder:object:root=true

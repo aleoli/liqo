@@ -90,7 +90,7 @@ type ForeignClusterSpec struct {
 	// +kubebuilder:validation:Enum="OutOfBand";"InBand"
 	// +kubebuilder:default="OutOfBand"
 	// +kubebuilder:validation:Optional
-	PeeringType PeeringType `json:"peeringType,omitempty"`
+//	PeeringType PeeringType `json:"peeringType,omitempty"`
 
 	// Foreign Cluster Identity.
 	ClusterIdentity ClusterIdentity `json:"clusterIdentity,omitempty"`
@@ -98,26 +98,26 @@ type ForeignClusterSpec struct {
 	// +kubebuilder:validation:Enum="Auto";"No";"Yes"
 	// +kubebuilder:default="Auto"
 	// +kubebuilder:validation:Optional
-	OutgoingPeeringEnabled PeeringEnabledType `json:"outgoingPeeringEnabled"`
+// ?	OutgoingPeeringEnabled PeeringEnabledType `json:"outgoingPeeringEnabled"`
 	// Allow the remote cluster to establish a peering with our cluster.
 	// +kubebuilder:validation:Enum="Auto";"No";"Yes"
 	// +kubebuilder:default="Auto"
 	// +kubebuilder:validation:Optional
-	IncomingPeeringEnabled PeeringEnabledType `json:"incomingPeeringEnabled"`
+//	IncomingPeeringEnabled PeeringEnabledType `json:"incomingPeeringEnabled"`
 	// URL where to contact foreign Auth service.
 	// +kubebuilder:validation:Pattern=`https:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)`
-	ForeignAuthURL string `json:"foreignAuthUrl"`
+//	ForeignAuthURL string `json:"foreignAuthUrl"`
 	// URL where to contact foreign proxy for the api server. This URL is used when
 	// creating the k8s clients toward the remote cluster.
-	ForeignProxyURL string `json:"foreignProxyUrl,omitempty"`
+//	ForeignProxyURL string `json:"foreignProxyUrl,omitempty"`
 	// Indicates if the local cluster has to skip the tls verification over the remote Authentication Service or not.
 	// +kubebuilder:default=true
 	// +kubebuilder:validation:Optional
-	InsecureSkipTLSVerify *bool `json:"insecureSkipTLSVerify"`
+//	InsecureSkipTLSVerify *bool `json:"insecureSkipTLSVerify"`
 	// If discoveryType is LAN, this indicates the number of seconds after that
 	// this ForeignCluster will be removed if no updates have been received.
 	// +kubebuilder:validation:Minimum=0
-	TTL int `json:"ttl,omitempty"`
+// ?	TTL int `json:"ttl,omitempty"`
 }
 
 // ClusterIdentity contains the information about a remote cluster (ID and Name).
@@ -140,15 +140,33 @@ type ForeignClusterStatus struct {
 
 	// TenantNamespace names in the peered clusters
 	// +kubebuilder:validation:Optional
-	TenantNamespace TenantNamespaceType `json:"tenantNamespace"`
+	TenantNamespace TenantNamespaceType `json:"tenantNamespace"`	// dall'identity cp o dal tenant
 
 	// PeeringConditions contains the conditions about the peering related to this
 	// ForeignCluster.
-	PeeringConditions []PeeringCondition `json:"peeringConditions,omitempty"`
+	NetworkConditions []Condition `json:"peeringConditions,omitempty"`
+	AuthenticationConditions []Condition `json:"authenticationConditions,omitempty"`
+	OffloadingConditions []Condition `json:"offloadingConditions,omitempty"`
 
 	// URL of the forign cluster's API server.
 	// +kubebuilder:validation:Optional
-	APIServerURL string `json:"apiServerUrl,omitempty"`
+	APIServerURL string `json:"apiServerUrl,omitempty"`	// dall'identity cp
+
+	// URL where to contact foreign proxy for the api server. This URL is used when
+	// creating the k8s clients toward the remote cluster.
+	ForeignProxyURL string `json:"foreignProxyUrl,omitempty"` // dall'identity cp
+
+	Modules struct{
+		Authentication struct{
+			Enabled bool `json:"enabled"`
+		}
+		Networking struct{
+			Enabled bool `json:"enabled"`
+		}
+		Offloading struct{
+			Enabled bool `json:"enabled"`
+		}
+	}
 }
 
 // PeeringConditionType represents different conditions that a peering could assume.
