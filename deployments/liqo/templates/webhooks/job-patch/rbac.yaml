@@ -7,7 +7,6 @@ metadata:
   name: {{ include "liqo.prefixedName" $cfg }}
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
   labels:
     {{- include "liqo.labels" $cfg | nindent 4 }}
 ---
@@ -17,7 +16,6 @@ metadata:
   name: {{ include "liqo.prefixedName" $cfg }}
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
   labels:
     {{- include "liqo.labels" $cfg | nindent 4 }}
 rules:
@@ -35,7 +33,6 @@ metadata:
   name: {{ include "liqo.prefixedName" $cfg }}
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
   labels:
     {{- include "liqo.labels" $cfg | nindent 4 }}
 roleRef:
@@ -53,7 +50,6 @@ metadata:
   name: {{ include "liqo.prefixedName" $cfg }}
   annotations:
     "helm.sh/hook": post-install,post-upgrade
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
   labels:
     {{- include "liqo.labels" $cfg | nindent 4 }}
 rules:
@@ -72,7 +68,6 @@ metadata:
   name: {{ include "liqo.prefixedName" $cfg }}
   annotations:
     "helm.sh/hook": post-install,post-upgrade
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
   labels:
     {{- include "liqo.labels" $cfg | nindent 4 }}
 roleRef:
