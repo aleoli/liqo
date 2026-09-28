@@ -66,6 +66,8 @@ type Options struct {
 	AWSConfig                        *identitymanager.LocalAwsConfig
 	ClusterLabels                    args.StringMap
 	IngressClasses                   args.ClassNameList
+	GatewayClasses                   args.ClassNameList
+	SharedGateways                   args.NamespacedClassNameList
 	LoadBalancerClasses              args.ClassNameList
 	DefaultNodeResources             args.ResourceMap
 	GlobalLabels                     args.StringMap
@@ -83,6 +85,7 @@ type Options struct {
 	LocalPodCIDRs               []string
 	VkOptionsDefaultTemplate    string
 	ShadowIngressStatusWorkers  int
+	GatewayAPIStatusWorkers     int
 
 	// Cross module
 	EnableAPIServerProxyIPRemapping bool
